@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -11,32 +12,43 @@ namespace MCloudServer
 {
     public class DbCtx : DbContext
     {
-        public DbCtx(DbContextOptions<DbCtx> options) : base(options)
+        public DbCtx(DbContextOptions<DbCtx> options, MCloudConfig mCloudConfig) : base(options)
         {
+            MCloudConfig = mCloudConfig;
         }
 
         public DbSet<User> Users { get; set; }
         public DbSet<List> Lists { get; set; }
         public DbSet<Track> Tracks { get; set; }
+        public MCloudConfig MCloudConfig { get; }
 
         // protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         //     => optionsBuilder.UseNpgsql("Host=localhost;Database=testdb;Username=test;Password=test123");
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<List>().ToTable("lists")
-                .Property(l => l.trackids)
-                .HasConversion(
-                    v => string.Join(',', v),
-                    v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(str => int.Parse(str)).ToList());
+            modelBuilder.Entity<List>().ToTable("lists");
             modelBuilder.Entity<User>().ToTable("users").HasIndex(u => u.username).IsUnique();
             modelBuilder.Entity<Track>().ToTable("tracks");
-            modelBuilder.Entity<User>()
-                .Property(u => u.lists)
-                .HasConversion(
-                    v => string.Join(',', v),
-                    v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(str => int.Parse(str)).ToList());
+
+            if (MCloudConfig.DbType == DbType.SQLite)
+            {
+                ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
+                ApplyListConversion(modelBuilder.Entity<List>().Property(l => l.trackids));
+            }
         }
+
+        private static void ApplyListConversion(PropertyBuilder<List<int>> prop)
+        {
+            prop.HasConversion(
+                v => string.Join(',', v),
+                v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(str => int.Parse(str)).ToList());
+        }
+
+        private static Func<DbCtx, string, Task<User>> findUser
+            = EF.CompileAsyncQuery((DbCtx db, string username) =>
+                db.Users.FirstOrDefault(u => u.username == username)
+            );
 
         /// <summary>
         /// Check authorization info in the request. Return the user or null.
@@ -53,7 +65,7 @@ namespace MCloudServer
             if (kv.Length < 2) return null;
             var username = kv[0];
             var passwd = kv[1];
-            var user = await Users.FirstOrDefaultAsync(u => u.username == username);
+            var user = await findUser(this, username);
             if (user == null || user.passwd != passwd) return null;
             return user;
         }
