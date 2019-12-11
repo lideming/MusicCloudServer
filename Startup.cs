@@ -30,6 +30,10 @@ namespace MCloudServer
         public string StaticDir { get; set; }
         // "staticdir"
         // if exists, the server will serve static files
+
+        public string StorageDir { get; set; }
+        // "storagedir"
+        // the directory to store track files
     }
 
     public enum DbType
@@ -50,7 +54,8 @@ namespace MCloudServer
                     (dbtype == "sqlite" || dbtype == null) ? DbType.SQLite :
                     throw new Exception($"unknown dbtype {dbtype}"),
                 DbStr = Configuration["dbstr"],
-                StaticDir = Configuration["staticdir"]
+                StaticDir = Configuration["staticdir"],
+                StorageDir = Configuration["storagedir"] ?? "data/storage"
             };
         }
 
@@ -105,6 +110,15 @@ namespace MCloudServer
                 app.UseStaticFiles(new StaticFileOptions
                 {
                     FileProvider = fileProvider,
+                });
+            }
+
+            if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false)
+            {
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StorageDir)),
+                    RequestPath = "/api/storage"
                 });
             }
 

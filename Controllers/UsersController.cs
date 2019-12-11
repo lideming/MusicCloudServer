@@ -11,13 +11,11 @@ namespace MCloudServer.Controllers
 {
     [Route("api/users")]
     [ApiController]
-    public class UsersController : ControllerBase
+    public class UsersController : MyControllerBase
     {
-        private readonly DbCtx _context;
 
-        public UsersController(DbCtx context)
+        public UsersController(DbCtx context) : base(context)
         {
-            _context = context;
         }
 
         //// GET: api/Users
@@ -38,7 +36,7 @@ namespace MCloudServer.Controllers
         [HttpGet("me")]
         public async Task<ActionResult<UserGetVM>> GetUserMe()
         {
-            var user = await _context.GetUser(HttpContext);
+            var user = await GetUser();
             return await GetUser(user);
         }
 
@@ -52,7 +50,7 @@ namespace MCloudServer.Controllers
             // get all needed lists in a single SQL query.
             var lists = await _context.Lists
                 .Where(l => user.lists.Contains(l.id))
-                .Select(l => l.GetTrackListInfo())
+                .Select(l => l.ToTrackListInfo())
                 .ToListAsync();
 
             // get the order right
@@ -72,7 +70,7 @@ namespace MCloudServer.Controllers
         [HttpPut("me")]
         public async Task<IActionResult> PutUser(UserPutVM newState)
         {
-            var user = await _context.GetUser(HttpContext);
+            var user = await GetUser();
             if (user == null || user.id != newState.id || user.username != newState.username
                 || newState.listids == null)
             {
@@ -91,24 +89,6 @@ namespace MCloudServer.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-
-        // Create a list and add to lists of user
-        [HttpPost("me/lists/new")]
-        public async Task<ActionResult<List>> PostMeList(List list)
-        {
-            var user = await _context.GetUser(HttpContext);
-            if (user == null) return Forbid();
-
-            _context.Lists.Add(list);
-            await _context.SaveChangesAsync();
-
-            user.lists.Add(list.id);
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
-
-
-            return list;
         }
 
         [HttpPost("new")]
@@ -130,35 +110,35 @@ namespace MCloudServer.Controllers
             return await GetUser(user.id);
         }
 
-        //// DELETE: api/Users/5
-        //[HttpDelete("{id}")]
-        //public async Task<ActionResult<User>> DeleteUser(int id)
-        //{
-        //    var user = await _context.Users.FindAsync(id);
-        //    if (user == null)
-        //    {
-        //        return NotFound();
-        //    }
-
-        //    _context.Users.Remove(user);
-        //    await _context.SaveChangesAsync();
-
-        //    return user;
-        //}
-
-
-        private ActionResult GetErrorResult(string error)
+        // Create a list and add to lists of user
+        [HttpPost("me/lists/new")]
+        public async Task<ActionResult<TrackListInfoVM>> PostMeList(ListPutVM vm)
         {
-            return new JsonResult(new
-            {
-                error = error
-            })
-            { StatusCode = 450 };
+            var user = await GetUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var list = vm.ToList();
+            list.owner = user.id;
+            _context.Lists.Add(list);
+            await _context.SaveChangesAsync();
+
+            user.lists.Add(list.id);
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return list.ToTrackListInfo();
         }
 
-        private bool UserExists(int id)
+        [HttpGet("me/uploads")]
+        public async Task<ActionResult> GetMeUploads()
         {
-            return _context.Users.Any(e => e.id == id);
+            var user = await GetUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            return new JsonResult(new
+            {
+                tracks = await _context.Tracks.Select(t => t.owner == user.id).ToListAsync()
+            });
         }
     }
 }

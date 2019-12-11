@@ -11,20 +11,17 @@ namespace MCloudServer.Controllers
 {
     [Route("api/lists")]
     [ApiController]
-    public class ListsController : ControllerBase
+    public class ListsController : MyControllerBase
     {
-        private readonly DbCtx _context;
-
-        public ListsController(DbCtx context)
+        public ListsController(DbCtx context) : base(context)
         {
-            _context = context;
         }
 
         [HttpGet("index")]
         public async Task<ActionResult> GetIndex()
         {
             // should return all visible lists for the user
-            var user = _context.GetUser(HttpContext);
+            var user = GetUser();
             var ret = new
             {
                 lists = await _context.Lists.Select(l => new { l.id, l.name }).ToListAsync()
@@ -37,77 +34,59 @@ namespace MCloudServer.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult> GetList(int id)
         {
+            var user = await GetUser();
+            if (user == null) return GetErrorResult("no_login");
+
             var list = await _context.Lists.FindAsync(id);
+            if (list?.owner != user.id) return GetErrorResult("list_not_found");
 
-            return GetList(list);
+            return RenderList(list);
         }
 
-        private ActionResult GetList(List list)
-        {
-            if (list == null)
-            {
-                return NotFound();
-            }
-
-            return new JsonResult(new
-            {
-                id = list.id,
-                name = list.name,
-                tracks = list.trackids.Select(i => _context.Tracks.Find(i))
-            });
-        }
-
-        // PUT: api/Lists/5
-        // To protect from overposting attacks, please enable the specific properties you want to bind to, for
-        // more details see https://aka.ms/RazorPagesCRUD.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutList(int id, List list)
+        public async Task<IActionResult> PutList(int id, ListPutVM vm)
         {
-            if (id != list.id)
+            if (id != vm.id)
             {
-                return BadRequest();
+                return GetErrorResult("bad_request");
             }
+            var user = await GetUser();
+            var list = await _context.Lists.FindAsync(id);
+            if (list == null || user == null || list.owner != user.id) return GetErrorResult("list_not_found");
+
+            vm.ApplyToList(list);
+            // TODO: check trackids
 
             _context.Entry(list).State = EntityState.Modified;
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ListExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            await _context.SaveChangesAsync();
 
-            return GetList(list);
+            return RenderList(list);
         }
 
         // POST: api/Lists
         [HttpPost]
-        public async Task<ActionResult<List>> PostList(List list)
+        public async Task<ActionResult<List>> PostList(ListPutVM vm)
         {
+            var user = await GetUser();
+            if (user == null) return GetErrorResult("no_login");
+            var list = vm.ToList();
+            list.owner = user.id;
             _context.Lists.Add(list);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetList", new { id = list.id }, list);
+            return CreatedAtAction(nameof(GetList), new { id = list.id }, list.ToTrackListInfo());
         }
 
-        // DELETE: api/Lists/5
+        // DELETE: api/ListsIList/5
         [HttpDelete("{id}")]
         public async Task<ActionResult<List>> DeleteList(int id)
         {
+            var user = await GetUser();
+            if (user == null) return GetErrorResult("no_login");
+
             var list = await _context.Lists.FindAsync(id);
-            if (list == null)
-            {
-                return NotFound();
-            }
+            if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
 
             _context.Lists.Remove(list);
             await _context.SaveChangesAsync();

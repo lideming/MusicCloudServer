@@ -66,6 +66,11 @@ namespace MCloudServer
             if (user == null || user.passwd != passwd) return null;
             return user;
         }
+
+        public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
+        {
+            return trackids.Select(i => Tracks.Find(i));
+        }
     }
 
     public class User
@@ -83,6 +88,8 @@ namespace MCloudServer
         User = 1,
         SuperAdmin = 255
     }
+
+    // VM means View Model
 
     public class UserRegisterVM
     {
@@ -108,10 +115,27 @@ namespace MCloudServer
     {
         [Key]
         public int id { get; set; }
+        public int owner { get; set; }
         public string name { get; set; }
         public List<int> trackids { get; set; }
 
-        public TrackListInfoVM GetTrackListInfo() => new TrackListInfoVM { id = id, name = name };
+        public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
+    }
+
+    public class ListPutVM
+    {
+        public int id { get; set; }
+        public string name { get; set; }
+        public List<int> trackids { get; set; }
+
+        public List ToList() => ApplyToList(new List());
+
+        public List ApplyToList(List list){
+            list.id = id;
+            list.name = name;
+            list.trackids = trackids;
+            return list;
+        }
     }
 
     public class TrackListInfoVM
