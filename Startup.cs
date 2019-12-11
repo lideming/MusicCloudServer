@@ -79,7 +79,7 @@ namespace MCloudServer
                 {
                     throw new Exception("unknown DbType in MyConfigration");
                 }
-            });
+            }, ServiceLifetime.Singleton);
             services.AddCors();
         }
 
@@ -92,19 +92,30 @@ namespace MCloudServer
             }
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
-            //using (var scope = app.ApplicationServices.CreateScope())
-            //{
-            //    var ctx = scope.ServiceProvider.GetService<DbCtx>();
-            //    ctx.Database.EnsureCreated();
-            //}
-
             dbctx.Database.EnsureCreated();
 
             if (MyConfigration.StaticDir != null)
+            {
+                var fileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StaticDir));
+                app.UseDefaultFiles(new DefaultFilesOptions
+                {
+                    FileProvider = fileProvider,
+                    DefaultFileNames = new[] { "index.html" }
+                });
                 app.UseStaticFiles(new StaticFileOptions
                 {
-                    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StaticDir)),
+                    FileProvider = fileProvider,
                 });
+            }
+
+            app.Use((ctx, next) =>
+            {
+                if (ctx.Request.Path.StartsWithSegments("/api/my", out var remaining))
+                {
+                    ctx.Request.Path = "/api/users/me" + remaining;
+                }
+                return next();
+            });
 
             app.UseRouting();
 

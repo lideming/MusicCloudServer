@@ -22,9 +22,6 @@ namespace MCloudServer
         public DbSet<Track> Tracks { get; set; }
         public MCloudConfig MCloudConfig { get; }
 
-        // protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        //     => optionsBuilder.UseNpgsql("Host=localhost;Database=testdb;Username=test;Password=test123");
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<List>().ToTable("lists");
@@ -127,8 +124,28 @@ namespace MCloudServer
     {
         [Key]
         public int id { get; set; }
+        public int owner { get; set; } // the id of user that uploads this track
         public string name { get; set; }
         public string artist { get; set; }
         public string url { get; set; }
+    }
+
+    public class TrackVM
+    {
+        public int id { get; set; }
+        public string name { get; set; }
+        public string artist { get; set; }
+        public string url { get; set; }
+
+        public static TrackVM FromTrack(Track t)
+        {
+            return new TrackVM
+            {
+                id = t.id,
+                name = t.name,
+                artist = t.artist,
+                url = t.url,
+            };
+        }
     }
 }
