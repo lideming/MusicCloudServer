@@ -49,7 +49,8 @@ namespace MCloudServer.Controllers
             var stream = Request.Body;
 
             // Read the Track json
-            var jsonStr = await ReadString(stream, await ReadBlockLength(stream));
+            var jsonBytesLen = await ReadBlockLength(stream);
+            var jsonStr = await ReadString(stream, jsonBytesLen);
             var track = JsonConvert.DeserializeObject<Track>(jsonStr);
 
             // Now start reading the file
@@ -68,6 +69,7 @@ namespace MCloudServer.Controllers
                 {
                     read = await stream.ReadAsync(buffer, 0, buffer.Length);
                     if (read == 0) throw new Exception("Unexpected EOF");
+                    await fs.WriteAsync(buffer, 0, read);
                 }
                 await stream.CopyToAsync(fs);
             }
@@ -88,7 +90,7 @@ namespace MCloudServer.Controllers
         private async Task<int> ReadBlockLength(Stream stream)
         {
             var str = await ReadString(stream, 10);
-            if (str.AsSpan(8) != "\r\n") throw new Exception();
+            if (str.AsSpan(8).CompareTo("\r\n", StringComparison.Ordinal) != 0) throw new Exception();
             return ParseHex(str.AsSpan(0, 8));
         }
 
@@ -96,7 +98,7 @@ namespace MCloudServer.Controllers
         {
             int r = 0;
             const string hex = "0123456789abcdefABCDEF";
-            for (int i = str.Length - 1; i >= 0; i--)
+            for (int i = 0; i < str.Length; i++)
             {
                 var digit = hex.IndexOf(str[i]);
                 if (digit < 0) throw new ArgumentException($"Unexpected char '{str[i]}' parsing hex number");

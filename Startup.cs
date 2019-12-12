@@ -84,7 +84,7 @@ namespace MCloudServer
                 {
                     throw new Exception("unknown DbType in MyConfigration");
                 }
-            }, ServiceLifetime.Singleton);
+            });
             services.AddCors();
         }
 
@@ -115,11 +115,15 @@ namespace MCloudServer
 
             if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false)
             {
-                app.UseStaticFiles(new StaticFileOptions
+                string path = Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StorageDir);
+                Directory.CreateDirectory(path);
+                var fp = new StaticFileOptions
                 {
-                    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StorageDir)),
-                    RequestPath = "/api/storage"
-                });
+                    FileProvider = new PhysicalFileProvider(path),
+                    RequestPath = "/api/storage",
+                    ServeUnknownFileTypes = true
+                };
+                app.UseStaticFiles(fp);
             }
 
             app.Use((ctx, next) =>

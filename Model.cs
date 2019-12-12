@@ -28,6 +28,7 @@ namespace MCloudServer
             modelBuilder.Entity<User>().ToTable("users").HasIndex(u => u.username).IsUnique();
             modelBuilder.Entity<Track>().ToTable("tracks");
 
+            // Workaround for SQLite:
             if (MCloudConfig.DbType == DbType.SQLite)
             {
                 ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
@@ -50,8 +51,6 @@ namespace MCloudServer
         /// <summary>
         /// Check authorization info in the request. Return the user or null.
         /// </summary>
-        /// <param name="ctx"></param>
-        /// <returns></returns>
         public async Task<User> GetUser(HttpContext ctx)
         {
             var auth = ctx.Request.Headers["Authorization"];

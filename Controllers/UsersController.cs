@@ -137,7 +137,7 @@ namespace MCloudServer.Controllers
 
             return new JsonResult(new
             {
-                tracks = await _context.Tracks.Select(t => t.owner == user.id).ToListAsync()
+                tracks = await _context.Tracks.Where(t => t.owner == user.id).ToListAsync()
             });
         }
     }
