@@ -18,7 +18,7 @@ namespace MCloudServer.Controllers
             _context = context;
         }
 
-        protected Task<User> GetUser() => _context.GetUser(HttpContext);
+        protected Task<User> GetLoginUser() => _context.GetUser(HttpContext);
 
         protected ActionResult GetErrorResult(string error)
         {

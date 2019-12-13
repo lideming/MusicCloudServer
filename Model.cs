@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -62,13 +64,29 @@ namespace MCloudServer
             var username = kv[0];
             var passwd = kv[1];
             var user = await findUser(this, username);
-            if (user == null || user.passwd != passwd) return null;
+            if (user == null || !ValidatePassword(passwd, user.passwd)) return null;
             return user;
         }
 
         public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
         {
             return trackids.Select(i => Tracks.Find(i));
+        }
+
+        public static string HashPassword(string passwd)
+        {
+            var salt = new byte[128 / 8];
+            RandomNumberGenerator.Fill(salt);
+            var saltedPasswd = KeyDerivation.Pbkdf2(passwd, salt, KeyDerivationPrf.HMACSHA1, 1000, 128 / 8);
+            return Convert.ToBase64String(saltedPasswd) + "|" + Convert.ToBase64String(salt);
+        }
+
+        public static bool ValidatePassword(string passwd, string saltedBundle)
+        {
+            var splits = saltedBundle.Split('|');
+            var salt = Convert.FromBase64String(splits[1]);
+            var saltedPasswd = KeyDerivation.Pbkdf2(passwd, salt, KeyDerivationPrf.HMACSHA1, 1000, 128 / 8);
+            return Convert.FromBase64String(splits[0]).SequenceEqual(saltedPasswd);
         }
     }
 
@@ -129,7 +147,8 @@ namespace MCloudServer
 
         public List ToList() => ApplyToList(new List());
 
-        public List ApplyToList(List list){
+        public List ApplyToList(List list)
+        {
             list.id = id;
             list.name = name;
             list.trackids = trackids;

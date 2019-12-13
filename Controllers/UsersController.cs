@@ -36,7 +36,7 @@ namespace MCloudServer.Controllers
         [HttpGet("me")]
         public async Task<ActionResult<UserGetVM>> GetUserMe()
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             return await GetUser(user);
         }
 
@@ -68,9 +68,9 @@ namespace MCloudServer.Controllers
         // PUT: api/users/me
         // update lists
         [HttpPut("me")]
-        public async Task<IActionResult> PutUser(UserPutVM newState)
+        public async Task<ActionResult<UserGetVM>> PutUser(UserPutVM newState)
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null || user.id != newState.id || user.username != newState.username
                 || newState.listids == null)
             {
@@ -88,7 +88,7 @@ namespace MCloudServer.Controllers
 
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return await GetUser(user);
         }
 
         [HttpPost("new")]
@@ -102,7 +102,7 @@ namespace MCloudServer.Controllers
             {
                 role = UserRole.User,
                 username = userreg.username,
-                passwd = userreg.passwd,
+                passwd = DbCtx.HashPassword(userreg.passwd),
                 lists = new List<int>()
             };
             _context.Users.Add(user);
@@ -114,7 +114,7 @@ namespace MCloudServer.Controllers
         [HttpPost("me/lists/new")]
         public async Task<ActionResult<TrackListInfoVM>> PostMeList(ListPutVM vm)
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
             var list = vm.ToList();
@@ -132,7 +132,7 @@ namespace MCloudServer.Controllers
         [HttpGet("me/uploads")]
         public async Task<ActionResult> GetMeUploads()
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
             return new JsonResult(new

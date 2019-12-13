@@ -21,7 +21,7 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> GetIndex()
         {
             // should return all visible lists for the user
-            var user = GetUser();
+            var user = GetLoginUser();
             var ret = new
             {
                 lists = await _context.Lists.Select(l => new { l.id, l.name }).ToListAsync()
@@ -34,7 +34,7 @@ namespace MCloudServer.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult> GetList(int id)
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
             var list = await _context.Lists.FindAsync(id);
@@ -50,7 +50,7 @@ namespace MCloudServer.Controllers
             {
                 return GetErrorResult("bad_request");
             }
-            var user = await GetUser();
+            var user = await GetLoginUser();
             var list = await _context.Lists.FindAsync(id);
             if (list == null || user == null || list.owner != user.id) return GetErrorResult("list_not_found");
 
@@ -68,7 +68,7 @@ namespace MCloudServer.Controllers
         [HttpPost]
         public async Task<ActionResult<List>> PostList(ListPutVM vm)
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
             var list = vm.ToList();
             list.owner = user.id;
@@ -82,7 +82,7 @@ namespace MCloudServer.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<List>> DeleteList(int id)
         {
-            var user = await GetUser();
+            var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
             var list = await _context.Lists.FindAsync(id);

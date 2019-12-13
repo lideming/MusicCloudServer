@@ -25,6 +25,8 @@ namespace MCloudServer.Controllers
         //
         // POST /api/tracks/newfile with the request body in the following format:
         //
+        //    MIME: application/x-mcloud-upload
+        //
         //    [BLOCK(track info in json)] | [BLOCK(raw track file content)]
         //
         //    where [BLOCK(DATA)] := [length of DATA in 8 hex digits in ASCII] | "\r\n"
@@ -35,16 +37,11 @@ namespace MCloudServer.Controllers
         [HttpPost("newfile")]
         public async Task<ActionResult> PostNewFile()
         {
-            var user = await GetUser();
-            if (user == null)
-            {
-                // Response.StatusCode = 450;
-                // var resp = "{ \"error\": \"no_login\"}";
-                // Response.ContentLength = resp.Length;
-                // await Response.WriteAsync(resp);
-                // await Response.CompleteAsync();
-                return GetErrorResult("no_login");
-            }
+            if (Request.ContentType != "application/x-mcloud-upload")
+                return GetErrorResult("bad_content_type");
+
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
 
             var stream = Request.Body;
 
@@ -56,6 +53,7 @@ namespace MCloudServer.Controllers
             // Now start reading the file
             var fileLength = await ReadBlockLength(stream);
 
+            // Read the stream into a temp file
             var tmpdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks-inprogress");
             Directory.CreateDirectory(tmpdir);
 
@@ -74,11 +72,13 @@ namespace MCloudServer.Controllers
                 await stream.CopyToAsync(fs);
             }
 
+            // Move the temp file to storage "tracks" directory
             var tracksdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks");
             Directory.CreateDirectory(tracksdir);
 
             System.IO.File.Move(tmpfile, Path.Combine(tracksdir, filename));
 
+            // Fill the track info, and complete.
             track.url = "storage/tracks/" + filename;
             track.owner = user.id;
             _context.Tracks.Add(track);
