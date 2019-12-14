@@ -20,11 +20,16 @@ namespace MCloudServer.Controllers
         [HttpGet("index")]
         public async Task<ActionResult> GetIndex()
         {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
             // should return all visible lists for the user
-            var user = GetLoginUser();
             var ret = new
             {
-                lists = await _context.Lists.Select(l => new { l.id, l.name }).ToListAsync()
+                lists = await _context.Lists
+                    .Where(l => l.owner == user.id)
+                    .Select(l => l.ToTrackListInfo())
+                    .ToListAsync()
             };
             return new JsonResult(ret);
         }
@@ -64,7 +69,7 @@ namespace MCloudServer.Controllers
             return RenderList(list);
         }
 
-        // POST: api/Lists
+        // POST: api/lists
         [HttpPost]
         public async Task<ActionResult<List>> PostList(ListPutVM vm)
         {
@@ -78,9 +83,9 @@ namespace MCloudServer.Controllers
             return CreatedAtAction(nameof(GetList), new { id = list.id }, list.ToTrackListInfo());
         }
 
-        // DELETE: api/ListsIList/5
+        // DELETE: api/lists/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<List>> DeleteList(int id)
+        public async Task<ActionResult> DeleteList(int id)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
@@ -91,7 +96,7 @@ namespace MCloudServer.Controllers
             _context.Lists.Remove(list);
             await _context.SaveChangesAsync();
 
-            return list;
+            return NoContent();
         }
 
         private bool ListExists(int id)
