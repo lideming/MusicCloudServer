@@ -16,10 +16,21 @@
         body {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             background: #eeeeee;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            cursor: default;
+        }
+
+        .centerouter {
+            display: flex;
+            position: relative;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flex-1 {
+            flex: 1;
         }
 
         form {
@@ -48,16 +59,36 @@
             font-size: 15px;
             padding: 15px;
         }
+
+        .footer {
+            margin: 10px;
+            color: #666666;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: black;
+        }
     </style>
 </head>
 
 <body>
-    <form action="/passcode" method="post">
-        <h1>Access Forbidden</h1>
-        <p>A passcode is required.</p>
-        <input type="password" class="textbox" name="passcode" id="passcode" placeholder="Passcode">
-        <input type="submit" value="OK">
-    </form>
+    <div class="centerouter flex-1">
+        <form action="/passcode" method="post">
+            <h1>Access Forbidden</h1>
+            <p>A passcode is required.</p>
+            <input type="password" class="textbox" name="passcode" id="passcode" placeholder="Passcode">
+            <input type="submit" value="Proceed">
+        </form>
+    </div>
+    <div class="footer">
+        © 2019 - <a href="https://yuuza.net/">Yuuza</a>
+        - <a href="http://beian.miit.gov.cn/" target="_blank">桂ICP备19010850号-1</a>
+    </div>
 </body>
 
 </html>
