@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +36,9 @@ namespace MCloudServer
         public string StorageDir { get; set; }
         // "storagedir"
         // the directory to store track files
+
+        public string Passcode { get; set; }
+        // "passcode"
     }
 
     public enum DbType
@@ -55,7 +60,8 @@ namespace MCloudServer
                     throw new Exception($"unknown dbtype {dbtype}"),
                 DbStr = Configuration["dbstr"],
                 StaticDir = Configuration["staticdir"],
-                StorageDir = Configuration["storagedir"] ?? "data/storage"
+                StorageDir = Configuration["storagedir"] ?? "data/storage",
+                Passcode = Configuration["passcode"]
             };
         }
 
@@ -95,9 +101,15 @@ namespace MCloudServer
             {
                 app.UseDeveloperExceptionPage();
             }
+
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             dbctx.Database.EnsureCreated();
+
+            if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
+            {
+                ConfigurePasscode(app);
+            }
 
             if (MyConfigration.StaticDir != null)
             {
@@ -143,6 +155,50 @@ namespace MCloudServer
             {
                 endpoints.MapControllers();
             });
+        }
+
+        private void ConfigurePasscode(IApplicationBuilder app)
+        {
+            app.UseWhen((ctx) => ctx.Request.Cookies["mcloud_passcode"] != MyConfigration.Passcode,
+                app => app.Use(async (ctx, next) =>
+                {
+                    var req = ctx.Request;
+                    var resp = ctx.Response;
+                    if (req.Method == "POST" && req.Path == "/passcode")
+                    {
+                        var form = await req.ReadFormAsync();
+                        if (form != null && form["passcode"] == MyConfigration.Passcode)
+                        {
+                            resp.Cookies.Append("mcloud_passcode", form["passcode"], new CookieOptions
+                            {
+                                Expires = DateTime.Now.AddDays(7)
+                            });
+                            resp.StatusCode = 302;
+                            resp.Headers["Location"] = "/";
+                            return;
+                        }
+                    }
+
+                    resp.StatusCode = 403;
+                    var accepts = req.Headers["Accept"];
+                    bool acceptHtml = accepts.Any(x => x.Split(',').Contains("text/html"));
+                    if (acceptHtml)
+                    {
+                        var pagePath = Path.Combine(Directory.GetCurrentDirectory(), "passcode.html");
+                        resp.ContentType = "text/html";
+                        using (var fs = File.OpenRead(pagePath))
+                        {
+                            resp.ContentLength = fs.Length;
+                            await fs.CopyToAsync(resp.Body);
+                        }
+                    }
+                    else
+                    {
+                        resp.ContentType = "text/plain";
+                        await resp.Body.WriteAsync(Encoding.UTF8.GetBytes("passcode_missing"));
+                    }
+                    await resp.CompleteAsync();
+                }));
         }
     }
 }

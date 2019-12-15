@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>403 Forbidden</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #eeeeee;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        form {
+            background: white;
+            border: solid 1px #777777;
+            box-shadow: 0 0 5px #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 10px;
+        }
+
+        input {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            height: 40px;
+            margin: 15px 0;
+        }
+
+        .textbox {
+            font-size: 15px;
+            padding: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <form action="/passcode" method="post">
+        <h1>Access Forbidden</h1>
+        <p>A passcode is required.</p>
+        <input type="password" class="textbox" name="passcode" id="passcode" placeholder="Passcode">
+        <input type="submit" value="OK">
+    </form>
+</body>
+
+</html>
