@@ -104,7 +104,7 @@ namespace MCloudServer
 
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
-            dbctx.Database.EnsureCreated();
+            dbctx.Database.Migrate();
 
             if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
             {

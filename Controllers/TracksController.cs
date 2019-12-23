@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using MCloudServer;
 using System.IO;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace MCloudServer.Controllers
 {
@@ -47,11 +47,15 @@ namespace MCloudServer.Controllers
 
             // Read the Track json
             var jsonBytesLen = await ReadBlockLength(stream);
+            if (jsonBytesLen < 0 || jsonBytesLen > 1000)
+                return GetErrorResult("json_len_out_of_range");
             var jsonStr = await ReadString(stream, jsonBytesLen);
-            var track = JsonConvert.DeserializeObject<Track>(jsonStr);
+            var track = JsonSerializer.Deserialize<Track>(jsonStr);
 
             // Now start reading the file
             var fileLength = await ReadBlockLength(stream);
+            if (fileLength < 0 || fileLength > 100 * 1024 * 1024)
+                return GetErrorResult("file_len_out_of_range");
 
             // Read the stream into a temp file
             var tmpdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks-inprogress");
@@ -60,16 +64,24 @@ namespace MCloudServer.Controllers
             var filename = Guid.NewGuid().ToString("D");
             var tmpfile = Path.Combine(tmpdir, filename);
 
-            using (var fs = System.IO.File.Create(tmpfile))
+            try
             {
-                var buffer = new byte[64 * 1024];
-                for (int read, cur = 0; cur < fileLength; cur += read)
+                using (var fs = System.IO.File.Create(tmpfile))
                 {
-                    read = await stream.ReadAsync(buffer, 0, buffer.Length);
-                    if (read == 0) throw new Exception("Unexpected EOF");
-                    await fs.WriteAsync(buffer, 0, read);
+                    var buffer = new byte[64 * 1024];
+                    for (int read, cur = 0; cur < fileLength; cur += read)
+                    {
+                        read = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        if (read == 0) throw new Exception("Unexpected EOF");
+                        await fs.WriteAsync(buffer, 0, read);
+                    }
+                    await stream.CopyToAsync(fs);
                 }
-                await stream.CopyToAsync(fs);
+            }
+            catch (Exception)
+            {
+                System.IO.File.Delete(tmpfile);
+                throw;
             }
 
             // Move the temp file to storage "tracks" directory

@@ -19,16 +19,19 @@ namespace MCloudServer
             MCloudConfig = mCloudConfig;
         }
 
+        public MCloudConfig MCloudConfig { get; }
+
         public DbSet<User> Users { get; set; }
         public DbSet<List> Lists { get; set; }
         public DbSet<Track> Tracks { get; set; }
-        public MCloudConfig MCloudConfig { get; }
+        public DbSet<Comment> Comments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<List>().ToTable("lists");
             modelBuilder.Entity<User>().ToTable("users").HasIndex(u => u.username).IsUnique();
             modelBuilder.Entity<Track>().ToTable("tracks");
+            modelBuilder.Entity<Comment>().ToTable("comments");
 
             // Workaround for SQLite:
             if (MCloudConfig.DbType == DbType.SQLite)
@@ -189,5 +192,39 @@ namespace MCloudServer
                 url = t.url,
             };
         }
+    }
+
+    public class Comment
+    {
+        public int id { get; set; }
+        public int uid { get; set; }
+
+        [StringLength(20)]
+        public string tag { get; set; }
+        // like "g", "l/5" or "u/5"
+
+        public DateTime date { get; set; }
+
+        public string content { get; set; }
+
+        public CommentVM ToVM() => new CommentVM
+        {
+            id = this.id,
+            uid = this.uid,
+            username = "uid" + this.uid,
+            date = this.date,
+            content = this.content
+        };
+    }
+
+    public class CommentVM
+    {
+        public int id { get; set; }
+        public int uid { get; set; }
+        public string username { get; set; }
+
+        public DateTime date { get; set; }
+
+        public string content { get; set; }
     }
 }

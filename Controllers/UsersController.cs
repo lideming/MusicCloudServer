@@ -129,6 +129,23 @@ namespace MCloudServer.Controllers
             return list.ToTrackListInfo();
         }
 
+        // Create a list and add to lists of user
+        [HttpDelete("me/lists/{id}")]
+        public async Task<ActionResult<TrackListInfoVM>> DeleteMeList(int id)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var list = await _context.Lists.FindAsync(id);
+            if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
+            _context.Lists.Remove(list);
+            user.lists.Remove(list.id);
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return list.ToTrackListInfo();
+        }
+
         [HttpGet("me/uploads")]
         public async Task<ActionResult> GetMeUploads()
         {
@@ -139,6 +156,68 @@ namespace MCloudServer.Controllers
             {
                 tracks = await _context.Tracks.Where(t => t.owner == user.id).ToListAsync()
             });
+        }
+
+        [HttpGet("me/notes")]
+        public async Task<ActionResult> GetNotes([FromQuery] int begin)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            return RenderComments("un/" + user.id);
+        }
+
+        [HttpPost("me/notes/new")]
+        public async Task<ActionResult> PostNotes([FromQuery] int begin, [FromBody] CommentVM vm)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var comm = new Comment
+            {
+                tag = "un/" + user.id,
+                uid = user.id,
+                date = DateTime.UtcNow,
+                content = vm.content
+            };
+            _context.Comments.Add(comm);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(PostNotes), comm.ToVM());
+        }
+
+        [HttpPut("me/notes/{id}")]
+        public async Task<ActionResult> PutNotes([FromRoute] int id, [FromBody] CommentVM vm)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            if (id != vm.id) return GetErrorResult("bad_id");
+
+            var comm = await _context.Comments.FindAsync(id);
+            if (comm.uid != user.id || comm.tag != "un/" + user.id) return GetErrorResult("bad_comment");
+
+            comm.content = vm.content;
+
+            _context.Entry(comm).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return Ok(comm.ToVM());
+        }
+
+        [HttpDelete("me/notes/{id}")]
+        public async Task<ActionResult> DeleteNotes([FromRoute] int id)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var comm = await _context.Comments.FindAsync(id);
+            if (comm.uid != user.id || comm.tag != "un/" + user.id) return GetErrorResult("bad_comment");
+
+            _context.Comments.Remove(comm);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 }

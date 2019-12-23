@@ -40,5 +40,17 @@ namespace MCloudServer.Controllers
                 tracks = _context.GetTracks(list.trackids)
             });
         }
+
+        protected ActionResult RenderComments(string tag)
+        {
+            var query = _context.Comments.Where(c => c.tag == tag);
+            query = Request.Query["reverse"] != "1"
+                ? query.OrderBy(c => c.id)
+                : query.OrderByDescending(c => c.id);
+            return new JsonResult(new
+            {
+                comments = query.Select(c => c.ToVM())
+            });
+        }
     }
 }
