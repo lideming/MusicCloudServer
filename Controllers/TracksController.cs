@@ -20,6 +20,26 @@ namespace MCloudServer.Controllers
         {
         }
 
+        [HttpPut("{id}")]
+        public async Task<ActionResult> PutTrack(int id, TrackVM vm)
+        {
+            if (id != vm.id) return GetErrorResult("bad_request");
+
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = _context.Tracks.Find(id);
+            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+
+            track.name = vm.name;
+            track.artist = vm.artist;
+
+            _context.Entry(track).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return new JsonResult(TrackVM.FromTrack(track));
+        }
+
         // [Warning! New Binary Format!]
         // When clients upload a new track:
         //
@@ -64,22 +84,17 @@ namespace MCloudServer.Controllers
             var filename = Guid.NewGuid().ToString("D");
             var tmpfile = Path.Combine(tmpdir, filename);
 
-            try
-            {
-                using (var fs = System.IO.File.Create(tmpfile))
-                {
+            try {
+                using (var fs = System.IO.File.Create(tmpfile)) {
                     var buffer = new byte[64 * 1024];
-                    for (int read, cur = 0; cur < fileLength; cur += read)
-                    {
+                    for (int read, cur = 0; cur < fileLength; cur += read) {
                         read = await stream.ReadAsync(buffer, 0, buffer.Length);
                         if (read == 0) throw new Exception("Unexpected EOF");
                         await fs.WriteAsync(buffer, 0, read);
                     }
                     await stream.CopyToAsync(fs);
                 }
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 System.IO.File.Delete(tmpfile);
                 throw;
             }
@@ -93,6 +108,12 @@ namespace MCloudServer.Controllers
             // Fill the track info, and complete.
             track.url = "storage/tracks/" + filename;
             track.owner = user.id;
+            await Task.Run(() => {
+                try {
+                    track.ReadTrackInfoFromFile(_context.MCloudConfig);
+                } catch {
+                }
+            });
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
@@ -110,8 +131,7 @@ namespace MCloudServer.Controllers
         {
             int r = 0;
             const string hex = "0123456789abcdefABCDEF";
-            for (int i = 0; i < str.Length; i++)
-            {
+            for (int i = 0; i < str.Length; i++) {
                 var digit = hex.IndexOf(str[i]);
                 if (digit < 0) throw new ArgumentException($"Unexpected char '{str[i]}' parsing hex number");
                 if (digit >= 16) digit -= 6;
@@ -123,8 +143,7 @@ namespace MCloudServer.Controllers
         private async Task<string> ReadString(Stream stream, int len)
         {
             var buf = new byte[len];
-            if (await stream.ReadAsync(buf, 0, len) < len)
-            {
+            if (await stream.ReadAsync(buf, 0, len) < len) {
                 throw new IOException("Unexpected EOF");
             }
             // Note that the length of decoded string might be smaller than bytes length.

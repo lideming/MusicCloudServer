@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -34,8 +35,7 @@ namespace MCloudServer
             modelBuilder.Entity<Comment>().ToTable("comments");
 
             // Workaround for SQLite:
-            if (MCloudConfig.DbType == DbType.SQLite)
-            {
+            if (MCloudConfig.DbType == DbType.SQLite) {
                 ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
                 ApplyListConversion(modelBuilder.Entity<List>().Property(l => l.trackids));
             }
@@ -173,6 +173,18 @@ namespace MCloudServer
         public string name { get; set; }
         public string artist { get; set; }
         public string url { get; set; }
+
+        public void ReadTrackInfoFromFile(MCloudConfig config)
+        {
+            var path = Path.Combine(config.StorageDir,
+                                        this.url.Substring("storage/".Length));
+            Id3.Id3Tag tag;
+            using (var mp3 = new Id3.Mp3(path)) {
+                tag = mp3.GetTag(Id3.Id3TagFamily.Version2X);
+            }
+            this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
+            this.name = tag.Title.Value.Replace("\u0000", "");
+        }
     }
 
     public class TrackVM
@@ -184,8 +196,7 @@ namespace MCloudServer
 
         public static TrackVM FromTrack(Track t)
         {
-            return new TrackVM
-            {
+            return new TrackVM {
                 id = t.id,
                 name = t.name,
                 artist = t.artist,
@@ -207,8 +218,7 @@ namespace MCloudServer
 
         public string content { get; set; }
 
-        public CommentVM ToVM() => new CommentVM
-        {
+        public CommentVM ToVM() => new CommentVM {
             id = this.id,
             uid = this.uid,
             username = "uid" + this.uid,
