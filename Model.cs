@@ -174,6 +174,8 @@ namespace MCloudServer
         public string artist { get; set; }
         public string url { get; set; }
 
+        public string lyrics { get; set; }
+
         public void ReadTrackInfoFromFile(MCloudConfig config)
         {
             var path = Path.Combine(config.StorageDir,
@@ -194,6 +196,8 @@ namespace MCloudServer
         public string artist { get; set; }
         public string url { get; set; }
 
+        public string lyrics { get; set; }
+
         public static TrackVM FromTrack(Track t)
         {
             return new TrackVM {
@@ -201,6 +205,7 @@ namespace MCloudServer
                 name = t.name,
                 artist = t.artist,
                 url = t.url,
+                lyrics = t.lyrics,
             };
         }
     }
