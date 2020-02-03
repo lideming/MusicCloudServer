@@ -29,22 +29,32 @@ namespace MCloudServer.Controllers
             var result = "unknown job";
             var sb = new StringBuilder();
 
-            if (arg == "fill_tracks_info") {
-                var listOk = new List<int>();
-                var listFail = new List<int>();
-                await _context.Tracks.Where(t => t.artist == "Unknown").ForEachAsync((t) => {
-                    if (t.url.StartsWith("storage/")) {
-                        try {
-                            t.ReadTrackInfoFromFile(_context.MCloudConfig);
-                            listOk.Add(t.id);
-                        } catch (Exception) {
-                            listFail.Add(t.id);
+            try {
+                if (arg == "fill_tracks_info") {
+                    result = "ok";
+                    var listOk = new List<int>();
+                    var listFail = new List<int>();
+                    await _context.Tracks.Where(t => t.artist == "Unknown").ForEachAsync((t) => {
+                        if (t.url.StartsWith("storage/")) {
+                            try {
+                                t.ReadTrackInfoFromFile(_context.MCloudConfig);
+                                listOk.Add(t.id);
+                            } catch (Exception) {
+                                listFail.Add(t.id);
+                            }
                         }
-                    }
-                });
-                await _context.SaveChangesAsync();
-                sb.Append("ok: ").Append(string.Join(" ", listOk)).AppendLine();
-                sb.Append("fail: ").Append(string.Join(" ", listFail));
+                    });
+                    await _context.SaveChangesAsync();
+                    sb.Append("ok: ").Append(string.Join(" ", listOk)).AppendLine();
+                    sb.Append("fail: ").Append(string.Join(" ", listFail));
+                } else if (arg == "sql") {
+                    result = "ok";
+                    var sql = await new StreamReader(this.HttpContext.Request.Body, Encoding.UTF8).ReadToEndAsync();
+                    sb.Append("affected: ").Append(await _context.Database.ExecuteSqlRawAsync(sql));
+                }
+            } catch (Exception ex) {
+                result = "error";
+                sb.Append("\nerror:\n").Append(ex.ToString());
             }
 
             return new JsonResult(new {

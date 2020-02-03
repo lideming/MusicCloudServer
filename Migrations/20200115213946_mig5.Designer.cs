@@ -3,14 +3,16 @@ using System;
 using MCloudServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
-    partial class DbCtxModelSnapshot : ModelSnapshot
+    [Migration("20200115213946_mig5")]
+    partial class mig5
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -37,22 +39,7 @@ namespace MCloudServer.Migrations
 
                     b.HasKey("id");
 
-                    b.HasIndex("tag");
-
                     b.ToTable("comments");
-                });
-
-            modelBuilder.Entity("MCloudServer.ConfigItem", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Value")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("config");
                 });
 
             modelBuilder.Entity("MCloudServer.List", b =>
@@ -109,9 +96,6 @@ namespace MCloudServer.Migrations
                     b.Property<int>("id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("last_playing")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("lists")
                         .HasColumnType("TEXT");

@@ -27,23 +27,26 @@ namespace MCloudServer.Controllers
 
         // GET: api/Users/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserGetVM>> GetUser(int id)
+        public async Task<IActionResult> GetUser(int id)
         {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("user_not_found");
+            if (login.role != UserRole.SuperAdmin && login.id != id) return GetErrorResult("not_found");
+
             var user = await _context.Users.FindAsync(id);
             return await GetUser(user);
         }
 
         [HttpGet("me")]
-        public async Task<ActionResult<UserGetVM>> GetUserMe()
+        public async Task<IActionResult> GetUserMe()
         {
             var user = await GetLoginUser();
-            return await GetUser(user);
+            return await GetUser(user, true);
         }
 
-        private async Task<ActionResult<UserGetVM>> GetUser(User user)
+        private async Task<IActionResult> GetUser(User user, bool me = false)
         {
-            if (user == null)
-            {
+            if (user == null) {
                 return GetErrorResult("user_not_found");
             }
 
@@ -56,50 +59,88 @@ namespace MCloudServer.Controllers
             // get the order right
             lists = user.lists.Select(id => lists.Find(l => l.id == id)).ToList();
 
-            return new UserGetVM
-            {
-                id = user.id,
-                username = user.username,
-                // TODO: async
-                lists = lists
-            };
+            if (me) {
+                return new JsonResult(new {
+                    id = user.id,
+                    username = user.username,
+                    lists = lists,
+                    servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
+                    playing = TrackLocation.Parse(user.last_playing)
+                });
+            } else {
+                return new JsonResult(new {
+                    id = user.id,
+                    username = user.username,
+                    // TODO: async
+                    lists = lists
+                });
+            }
         }
 
         // PUT: api/users/me
         // update lists
         [HttpPut("me")]
-        public async Task<ActionResult<UserGetVM>> PutUser(UserPutVM newState)
+        public async Task<IActionResult> PutUser(UserPutVM newState)
         {
             var user = await GetLoginUser();
-            if (user == null || user.id != newState.id || user.username != newState.username
-                || newState.listids == null)
-            {
+            if (user == null || user.id != newState.id || user.username != newState.username) {
                 return GetErrorResult("check_failed");
             }
-            var listids = newState.listids;
-            if (_context.Lists.Count(l => listids.Contains(l.id)) != listids.Count)
-            {
-                return GetErrorResult("list_not_found");
+
+            RETRY:
+
+            if (newState.listids != null) {
+                var listids = newState.listids;
+                if (_context.Lists.Count(l => listids.Contains(l.id)) != listids.Count) {
+                    return GetErrorResult("list_not_found");
+                }
+                user.lists = listids;
+            }
+            if (newState.passwd != null) {
+                user.passwd = DbCtx.HashPassword(newState.passwd);
             }
 
-            user.lists = listids;
-
             _context.Entry(user).State = EntityState.Modified;
+            user.version++;
 
-            await _context.SaveChangesAsync();
+            if (await _context.FailedSavingChanges()) goto RETRY;
 
             return await GetUser(user);
         }
 
+        [HttpPost("me/playing")]
+        public async Task<IActionResult> PostMePlaying(TrackLocation playing)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            RETRY:
+            user.last_playing = playing.ToString();
+            _context.Entry(user).State = EntityState.Modified;
+            user.version++;
+
+            if (await _context.FailedSavingChanges()) goto RETRY;
+
+            return Ok();
+        }
+
+        [HttpGet("me/playing")]
+        public async Task<IActionResult> GetMePlaying()
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            return new JsonResult(TrackLocation.Parse(user.last_playing));
+        }
+
         [HttpPost("new")]
-        public async Task<ActionResult<UserGetVM>> PostUser(UserRegisterVM userreg)
+        public async Task<IActionResult> PostUser(UserRegisterVM userreg)
         {
             if (string.IsNullOrEmpty(userreg.username))
                 return GetErrorResult("bad_arg");
             if (_context.Users.Any(u => u.username == userreg.username))
                 return GetErrorResult("dup_user");
-            var user = new User
-            {
+            var user = new User {
                 role = UserRole.User,
                 username = userreg.username,
                 passwd = DbCtx.HashPassword(userreg.passwd),
@@ -114,19 +155,25 @@ namespace MCloudServer.Controllers
         [HttpPost("me/lists/new")]
         public async Task<ActionResult<TrackListInfoVM>> PostMeList(ListPutVM vm)
         {
-            var user = await GetLoginUser();
-            if (user == null) return GetErrorResult("no_login");
+            using (var transa = await _context.Database.BeginTransactionAsync()) {
+                var user = await GetLoginUser();
+                if (user == null) return GetErrorResult("no_login");
 
-            var list = vm.ToList();
-            list.owner = user.id;
-            _context.Lists.Add(list);
-            await _context.SaveChangesAsync();
+                var list = vm.ToList();
+                list.owner = user.id;
+                _context.Lists.Add(list);
+                await _context.SaveChangesAsync();
 
-            user.lists.Add(list.id);
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+                RETRY:
+                user.lists.Add(list.id);
+                user.version++;
+                _context.Entry(user).State = EntityState.Modified;
+                if (await _context.FailedSavingChanges()) goto RETRY;
 
-            return list.ToTrackListInfo();
+                await transa.CommitAsync();
+
+                return list.ToTrackListInfo();
+            }
         }
 
         // Create a list and add to lists of user
@@ -136,12 +183,14 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
+            RETRY:
             var list = await _context.Lists.FindAsync(id);
             if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
             _context.Lists.Remove(list);
             user.lists.Remove(list.id);
+            user.version++;
             _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            if (await _context.FailedSavingChanges()) goto RETRY;
 
             return list.ToTrackListInfo();
         }
@@ -152,8 +201,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            return new JsonResult(new
-            {
+            return new JsonResult(new {
                 tracks = await _context.Tracks.Where(t => t.owner == user.id).ToListAsync()
             });
         }
@@ -168,13 +216,12 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPost("me/notes/new")]
-        public async Task<ActionResult> PostNotes([FromQuery] int begin, [FromBody] CommentVM vm)
+        public async Task<ActionResult> PostNotes([FromBody] CommentVM vm)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            var comm = new Comment
-            {
+            var comm = new Comment {
                 tag = "un/" + user.id,
                 uid = user.id,
                 date = DateTime.UtcNow,
@@ -183,7 +230,7 @@ namespace MCloudServer.Controllers
             _context.Comments.Add(comm);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(PostNotes), comm.ToVM());
+            return CreatedAtAction(nameof(PostNotes), comm.ToVM(user));
         }
 
         [HttpPut("me/notes/{id}")]
@@ -202,7 +249,7 @@ namespace MCloudServer.Controllers
             _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return Ok(comm.ToVM());
+            return Ok(comm.ToVM(user));
         }
 
         [HttpDelete("me/notes/{id}")]

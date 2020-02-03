@@ -149,5 +149,80 @@ namespace MCloudServer.Controllers
             // Note that the length of decoded string might be smaller than bytes length.
             return Encoding.UTF8.GetString(buf);
         }
+
+        
+
+        [HttpGet("{trackid}/comments")]
+        public async Task<ActionResult> GetComments([FromRoute] int trackid, [FromQuery] int begin)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            return RenderComments("track/" + trackid);
+        }
+
+        [HttpPost("{trackid}/comments/new")]
+        public async Task<ActionResult> PostComments([FromRoute] int trackid, [FromBody] CommentVM vm)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            var comm = new Comment {
+                tag = "track/" + trackid,
+                uid = user.id,
+                date = DateTime.UtcNow,
+                content = vm.content
+            };
+            _context.Comments.Add(comm);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(PostComments), comm.ToVM(user));
+        }
+
+        [HttpPut("{trackid}/comments/{id}")]
+        public async Task<ActionResult> PutComments([FromRoute] int trackid, [FromRoute] int id, [FromBody] CommentVM vm)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            if (id != vm.id) return GetErrorResult("bad_id");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            var comm = await _context.Comments.FindAsync(id);
+            if (comm.uid != user.id || comm.tag != "track/" + trackid) return GetErrorResult("bad_comment");
+
+            comm.content = vm.content;
+
+            _context.Entry(comm).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return Ok(comm.ToVM(user));
+        }
+
+        [HttpDelete("{trackid}/comments/{id}")]
+        public async Task<ActionResult> DeleteComments([FromRoute] int trackid, [FromRoute] int id)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            var comm = await _context.Comments.FindAsync(id);
+            if (comm.uid != user.id || comm.tag != "track/" + trackid) return GetErrorResult("bad_comment");
+
+            _context.Comments.Remove(comm);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
     }
 }

@@ -32,7 +32,8 @@ namespace MCloudServer
             modelBuilder.Entity<List>().ToTable("lists");
             modelBuilder.Entity<User>().ToTable("users").HasIndex(u => u.username).IsUnique();
             modelBuilder.Entity<Track>().ToTable("tracks");
-            modelBuilder.Entity<Comment>().ToTable("comments");
+            modelBuilder.Entity<Comment>().ToTable("comments").HasIndex(c => c.tag);
+            modelBuilder.Entity<ConfigItem>().ToTable("config");
 
             // Workaround for SQLite:
             if (MCloudConfig.DbType == DbType.SQLite) {
@@ -76,6 +77,51 @@ namespace MCloudServer
             return trackids.Select(i => Tracks.Find(i));
         }
 
+        public async Task ChangeAndAutoRetry(Func<Task> func)
+        {
+            retry:
+            await func();
+            try {
+                await this.SaveChangesAsync();
+            } catch (DbUpdateConcurrencyException ex) {
+                foreach (var item in ex.Entries) {
+                    await item.ReloadAsync();
+                }
+                goto retry;
+            }
+        }
+
+        public async Task<bool> FailedSavingChanges()
+        {
+            try {
+                await this.SaveChangesAsync();
+            } catch (DbUpdateConcurrencyException ex) {
+                foreach (var item in ex.Entries) {
+                    await item.ReloadAsync();
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<string> GetConfig(string key)
+        {
+            var item = await this.FindAsync<ConfigItem>(key);
+            return item?.Value;
+        }
+
+        public async Task SetConfig(string key, string value)
+        {
+            var item = await this.FindAsync<ConfigItem>(key);
+            if (item == null) {
+                item = new ConfigItem { Key = key, Value = value };
+                this.Add(item);
+            } else {
+                item.Value = value;
+            }
+            await this.SaveChangesAsync();
+        }
+
         public static string HashPassword(string passwd)
         {
             var salt = new byte[128 / 8];
@@ -93,6 +139,13 @@ namespace MCloudServer
         }
     }
 
+    public class ConfigItem
+    {
+        [Key]
+        public string Key { get; set; }
+        public string Value { get; set; }
+    }
+
     public class User
     {
         [Key]
@@ -101,6 +154,10 @@ namespace MCloudServer
         public UserRole role { get; set; }
         public List<int> lists { get; set; }
         public string passwd { get; set; }
+        public string last_playing { get; set; }
+
+        [ConcurrencyCheck]
+        public int version { get; set; }
     }
 
     public enum UserRole
@@ -128,6 +185,7 @@ namespace MCloudServer
     {
         public int id { get; set; }
         public string username { get; set; }
+        public string passwd { get; set; }
         public List<int> listids { get; set; }
     }
 
@@ -137,7 +195,10 @@ namespace MCloudServer
         public int id { get; set; }
         public int owner { get; set; }
         public string name { get; set; }
+
         public List<int> trackids { get; set; }
+
+        public int version { get; set; }
 
         public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
     }
@@ -187,6 +248,10 @@ namespace MCloudServer
             this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
             this.name = tag.Title.Value.Replace("\u0000", "");
         }
+
+        public bool IsVisibleToUser(User user) {
+            return user.role == UserRole.SuperAdmin || user.id == this.owner;
+        }
     }
 
     public class TrackVM
@@ -223,11 +288,11 @@ namespace MCloudServer
 
         public string content { get; set; }
 
-        public CommentVM ToVM() => new CommentVM {
+        public CommentVM ToVM(User owner) => new CommentVM {
             id = this.id,
             uid = this.uid,
-            username = "uid" + this.uid,
-            date = this.date,
+            username = owner == null ? "uid" + this.uid : owner.username,
+            date = new DateTime(this.date.Ticks, DateTimeKind.Utc),
             content = this.content
         };
     }
@@ -241,5 +306,29 @@ namespace MCloudServer
         public DateTime date { get; set; }
 
         public string content { get; set; }
+    }
+
+    public class TrackLocation
+    {
+        public int listid { get; set; }
+        public int position { get; set; }
+        public int trackid { get; set; }
+
+        public override string ToString()
+        {
+            return $"{listid}/{position}/{trackid}";
+        }
+
+        public static TrackLocation Parse(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return new TrackLocation();
+            var splits = str.Split('/');
+            return new TrackLocation
+            {
+                listid = int.Parse(splits[0]),
+                position = int.Parse(splits[1]),
+                trackid = int.Parse(splits[2])
+            };
+        }
     }
 }

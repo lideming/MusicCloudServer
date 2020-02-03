@@ -73,6 +73,7 @@ namespace MCloudServer
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddSingleton<AppService>();
             services.AddSingleton(MyConfigration);
             services.AddDbContext<DbCtx>(options =>
             {
@@ -97,40 +98,34 @@ namespace MCloudServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx)
         {
-            if (env.IsDevelopment())
-            {
+            if (env.IsDevelopment()) {
                 app.UseDeveloperExceptionPage();
             }
 
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             dbctx.Database.Migrate();
+            AppMigrate(dbctx);
 
-            if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
-            {
+            if (string.IsNullOrEmpty(MyConfigration.Passcode) == false) {
                 ConfigurePasscode(app);
             }
 
-            if (MyConfigration.StaticDir != null)
-            {
+            if (MyConfigration.StaticDir != null) {
                 var fileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StaticDir));
-                app.UseDefaultFiles(new DefaultFilesOptions
-                {
+                app.UseDefaultFiles(new DefaultFilesOptions {
                     FileProvider = fileProvider,
                     DefaultFileNames = new[] { "index.html" }
                 });
-                app.UseStaticFiles(new StaticFileOptions
-                {
+                app.UseStaticFiles(new StaticFileOptions {
                     FileProvider = fileProvider,
                 });
             }
 
-            if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false)
-            {
+            if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false) {
                 string path = Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StorageDir);
                 Directory.CreateDirectory(path);
-                var fp = new StaticFileOptions
-                {
+                var fp = new StaticFileOptions {
                     FileProvider = new PhysicalFileProvider(path),
                     RequestPath = "/api/storage",
                     ServeUnknownFileTypes = true
@@ -138,10 +133,8 @@ namespace MCloudServer
                 app.UseStaticFiles(fp);
             }
 
-            app.Use((ctx, next) =>
-            {
-                if (ctx.Request.Path.StartsWithSegments("/api/my", out var remaining))
-                {
+            app.Use((ctx, next) => {
+                if (ctx.Request.Path.StartsWithSegments("/api/my", out var remaining)) {
                     ctx.Request.Path = "/api/users/me" + remaining;
                 }
                 return next();
@@ -151,10 +144,21 @@ namespace MCloudServer
 
             // app.UseAuthorization();
 
-            app.UseEndpoints(endpoints =>
-            {
+            app.UseEndpoints(endpoints => {
                 endpoints.MapControllers();
             });
+        }
+
+        private static void AppMigrate(DbCtx dbctx)
+        {
+            dbctx.GetConfig("appver").ContinueWith(async (task) => {
+                var val = await task;
+                var origVal = val;
+                if (val == null) {
+                    val = "1";
+                }
+                if (val != origVal) await dbctx.SetConfig("appver", val);
+            }).Wait();
         }
 
         private void ConfigurePasscode(IApplicationBuilder app)

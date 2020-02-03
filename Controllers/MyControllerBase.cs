@@ -6,12 +6,16 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MCloudServer;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MCloudServer.Controllers
 {
     public class MyControllerBase : ControllerBase
     {
         protected readonly DbCtx _context;
+
+        private AppService __app;
+        protected AppService _app => __app ?? (__app = this.HttpContext.RequestServices.GetService<AppService>());
 
         public MyControllerBase(DbCtx context)
         {
@@ -49,7 +53,7 @@ namespace MCloudServer.Controllers
                 : query.OrderByDescending(c => c.id);
             return new JsonResult(new
             {
-                comments = query.Select(c => c.ToVM())
+                comments = query.Join(_context.Users, c => c.uid, u => u.id, (c, u) => c.ToVM(u))
             });
         }
     }
