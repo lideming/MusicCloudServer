@@ -74,7 +74,9 @@ namespace MCloudServer
 
         public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
         {
-            return trackids.Select(i => Tracks.Find(i));
+            var ids = trackids.Distinct().ToList();
+            var tracks = Tracks.Where(x => ids.Contains(x.id)).ToList();
+            return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i)).Where(x => x != null);
         }
 
         public async Task ChangeAndAutoRetry(Func<Task> func)
@@ -249,9 +251,10 @@ namespace MCloudServer
             this.name = tag.Title.Value.Replace("\u0000", "");
         }
 
-        public bool IsVisibleToUser(User user) {
-            return user.role == UserRole.SuperAdmin || user.id == this.owner;
-        }
+        public bool IsVisibleToUser(User user)
+            => user.role == UserRole.SuperAdmin || user.id == this.owner;
+        public bool IsWritableByUser(User user)
+            => user.role == UserRole.SuperAdmin || user.id == this.owner;
     }
 
     public class TrackVM

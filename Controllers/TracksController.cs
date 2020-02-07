@@ -150,6 +150,34 @@ namespace MCloudServer.Controllers
             return Encoding.UTF8.GetString(buf);
         }
 
+        [HttpDelete("{trackid}")]
+        public async Task<ActionResult> DeleteTrack([FromRoute] int trackid)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+            if (track?.IsWritableByUser(user) != true) return GetErrorResult("permission_denied");
+
+            _context.Tracks.Remove(track);
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return GetErrorResult("track_not_found");
+            }
+
+            if (track.url.StartsWith("storage/tracks")) {
+                var filepath = Path.Combine(_context.MCloudConfig.StorageDir, "tracks",
+                                track.url.Substring("storage/tracks".Length));
+                System.IO.File.Delete(filepath);
+            }
+
+            return NoContent();
+        }
         
 
         [HttpGet("{trackid}/comments")]
