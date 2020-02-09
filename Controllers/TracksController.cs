@@ -106,6 +106,7 @@ namespace MCloudServer.Controllers
             System.IO.File.Move(tmpfile, Path.Combine(tracksdir, filename));
 
             // Fill the track info, and complete.
+            track.size = fileLength;
             track.url = "storage/tracks/" + filename;
             track.owner = user.id;
             await Task.Run(() => {
@@ -170,11 +171,7 @@ namespace MCloudServer.Controllers
                 return GetErrorResult("track_not_found");
             }
 
-            if (track.url.StartsWith("storage/tracks")) {
-                var filepath = Path.Combine(_context.MCloudConfig.StorageDir, "tracks",
-                                track.url.Substring("storage/tracks".Length));
-                System.IO.File.Delete(filepath);
-            }
+            track.DeleteFile(_app.Config);
 
             return NoContent();
         }

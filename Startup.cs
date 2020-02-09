@@ -96,7 +96,7 @@ namespace MCloudServer
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx, ILogger<Startup> logger)
         {
             if (env.IsDevelopment()) {
                 app.UseDeveloperExceptionPage();
@@ -105,7 +105,7 @@ namespace MCloudServer
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             dbctx.Database.Migrate();
-            AppMigrate(dbctx);
+            AppMigrate(dbctx, logger);
 
             if (string.IsNullOrEmpty(MyConfigration.Passcode) == false) {
                 ConfigurePasscode(app);
@@ -149,7 +149,7 @@ namespace MCloudServer
             });
         }
 
-        private static void AppMigrate(DbCtx dbctx)
+        private void AppMigrate(DbCtx dbctx, ILogger logger)
         {
             dbctx.GetConfig("appver").ContinueWith(async (task) => {
                 var val = await task;
@@ -157,7 +157,33 @@ namespace MCloudServer
                 if (val == null) {
                     val = "1";
                 }
-                if (val != origVal) await dbctx.SetConfig("appver", val);
+                if (val == "1") {
+                    int count = 0;
+                    foreach (var item in dbctx.Tracks.AsNoTracking())
+                    {
+                        try
+                        {
+                            if (item.TryGetStoragePath(MyConfigration, out var path))
+                            {
+                                item.size = (int)new FileInfo(path).Length;
+                                dbctx.Entry(item).State = EntityState.Modified;
+                                if (++count % 100 == 0) dbctx.SaveChanges();
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            logger.LogWarning(ex, "getting file length from track id {id}", item.id);
+                        }
+                    }
+                    dbctx.SaveChanges();
+                    logger.LogInformation("saved file length for {count} files", count);
+                    val = "2";
+                }
+                if (val != origVal)
+                {
+                    logger.LogInformation("appver changed from {orig} to {val}", origVal, val);
+                    await dbctx.SetConfig("appver", val);
+                }
             }).Wait();
         }
 

@@ -236,19 +236,41 @@ namespace MCloudServer
         public string name { get; set; }
         public string artist { get; set; }
         public string url { get; set; }
+        public int size { get; set; }
 
         public string lyrics { get; set; }
 
+        public bool TryGetStoragePath(MCloudConfig config, out string path)
+        {
+            if (this.url.StartsWith("storage/"))
+            {
+                path = Path.Combine(config.StorageDir, this.url.Substring("storage/".Length));
+                return true;
+            }
+            path = null;
+            return false;
+        }
+
+        public void DeleteFile(MCloudConfig config)
+        {
+            if (TryGetStoragePath(config, out var path))
+            {
+                File.Delete(path);
+            }
+        }
+
         public void ReadTrackInfoFromFile(MCloudConfig config)
         {
-            var path = Path.Combine(config.StorageDir,
-                                        this.url.Substring("storage/".Length));
-            Id3.Id3Tag tag;
-            using (var mp3 = new Id3.Mp3(path)) {
-                tag = mp3.GetTag(Id3.Id3TagFamily.Version2X);
+            if (TryGetStoragePath(config, out var path))
+            {
+                Id3.Id3Tag tag;
+                using (var mp3 = new Id3.Mp3(path))
+                {
+                    tag = mp3.GetTag(Id3.Id3TagFamily.Version2X);
+                }
+                this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
+                this.name = tag.Title.Value.Replace("\u0000", "");
             }
-            this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
-            this.name = tag.Title.Value.Replace("\u0000", "");
         }
 
         public bool IsVisibleToUser(User user)
