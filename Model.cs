@@ -263,13 +263,9 @@ namespace MCloudServer
         {
             if (TryGetStoragePath(config, out var path))
             {
-                Id3.Id3Tag tag;
-                using (var mp3 = new Id3.Mp3(path))
-                {
-                    tag = mp3.GetTag(Id3.Id3TagFamily.Version2X);
-                }
-                this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
-                this.name = tag.Title.Value.Replace("\u0000", "");
+                var info = new ATL.Track(path);
+                this.artist = info.Artist;
+                this.name = info.Title;
             }
         }
 
