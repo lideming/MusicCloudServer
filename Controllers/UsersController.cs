@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -65,7 +65,8 @@ namespace MCloudServer.Controllers
                     username = user.username,
                     lists = lists,
                     servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
-                    playing = TrackLocation.Parse(user.last_playing)
+                    playing = TrackLocation.Parse(user.last_playing),
+                    role = user.role == UserRole.SuperAdmin ? "admin" : "user"
                 });
             } else {
                 return new JsonResult(new {

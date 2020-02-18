@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -324,6 +324,9 @@ namespace MCloudServer
             date = new DateTime(this.date.Ticks, DateTimeKind.Utc),
             content = this.content
         };
+
+        public bool IsWritableByUser(User user)
+            => user.role == UserRole.SuperAdmin || user.id == this.uid;
     }
 
     public class CommentVM
