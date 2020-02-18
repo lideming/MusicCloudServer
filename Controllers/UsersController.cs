@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -53,7 +53,7 @@ namespace MCloudServer.Controllers
             // get all needed lists in a single SQL query.
             var lists = await _context.Lists
                 .Where(l => user.lists.Contains(l.id))
-                .Select(l => l.ToTrackListInfo())
+                .ToTrackListInfo()
                 .ToListAsync();
 
             // get the order right

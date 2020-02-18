@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -203,6 +203,14 @@ namespace MCloudServer
         public int version { get; set; }
 
         public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
+    }
+
+    public static class ListExtensions
+    {
+        public static IQueryable<TrackListInfoVM> ToTrackListInfo(this IQueryable<List> lists)
+        {
+            return lists.Select(l => new TrackListInfoVM { id = l.id, name = l.name });
+        }
     }
 
     public class ListPutVM
