@@ -54,7 +54,12 @@ namespace MCloudServer.Controllers
         //
         // When finished receiving, the server will response with the new Track entity.
 
+        static string[] SupportedFileFormats = new[] {
+            "mp3", "aac", "m4a", "mp4", "ogg", "opus", "flac", "ape", "wav"
+        };
+
         [HttpPost("newfile")]
+        [RequestSizeLimit(128 * 1024 * 1024)]
         public async Task<ActionResult> PostNewFile()
         {
             if (Request.ContentType != "application/x-mcloud-upload")
@@ -72,6 +77,10 @@ namespace MCloudServer.Controllers
             var jsonStr = await ReadString(stream, jsonBytesLen);
             var track = JsonSerializer.Deserialize<Track>(jsonStr);
 
+            var extNamePos = track.name.LastIndexOf('.');
+            var extName = extNamePos >= 0 ? track.name.Substring(extNamePos + 1).ToLower() : "mp3";
+            if (!SupportedFileFormats.Contains(extName)) return GetErrorResult("unsupported_file_format");
+
             // Now start reading the file
             var fileLength = await ReadBlockLength(stream);
             if (fileLength < 0 || fileLength > 100 * 1024 * 1024)
@@ -81,7 +90,7 @@ namespace MCloudServer.Controllers
             var tmpdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks-inprogress");
             Directory.CreateDirectory(tmpdir);
 
-            var filename = Guid.NewGuid().ToString("D");
+            var filename = Guid.NewGuid().ToString("D") + "." + extName;
             var tmpfile = Path.Combine(tmpdir, filename);
 
             try {

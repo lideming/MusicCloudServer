@@ -205,6 +205,14 @@ namespace MCloudServer
         public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
     }
 
+    public static class ListExtensions
+    {
+        public static IQueryable<TrackListInfoVM> ToTrackListInfo(this IQueryable<List> lists)
+        {
+            return lists.Select(l => new TrackListInfoVM { id = l.id, name = l.name });
+        }
+    }
+
     public class ListPutVM
     {
         public int id { get; set; }
@@ -263,13 +271,9 @@ namespace MCloudServer
         {
             if (TryGetStoragePath(config, out var path))
             {
-                Id3.Id3Tag tag;
-                using (var mp3 = new Id3.Mp3(path))
-                {
-                    tag = mp3.GetTag(Id3.Id3TagFamily.Version2X);
-                }
-                this.artist = string.Join(" / ", tag.Artists.Value).Replace("\u0000", "");
-                this.name = tag.Title.Value.Replace("\u0000", "");
+                var info = new ATL.Track(path);
+                this.artist = info.Artist;
+                this.name = info.Title;
             }
         }
 
@@ -320,6 +324,9 @@ namespace MCloudServer
             date = new DateTime(this.date.Ticks, DateTimeKind.Utc),
             content = this.content
         };
+
+        public bool IsWritableByUser(User user)
+            => user.role == UserRole.SuperAdmin || user.id == this.uid;
     }
 
     public class CommentVM

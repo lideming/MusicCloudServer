@@ -53,7 +53,7 @@ namespace MCloudServer.Controllers
             // get all needed lists in a single SQL query.
             var lists = await _context.Lists
                 .Where(l => user.lists.Contains(l.id))
-                .Select(l => l.ToTrackListInfo())
+                .ToTrackListInfo()
                 .ToListAsync();
 
             // get the order right
@@ -65,7 +65,8 @@ namespace MCloudServer.Controllers
                     username = user.username,
                     lists = lists,
                     servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
-                    playing = TrackLocation.Parse(user.last_playing)
+                    playing = TrackLocation.Parse(user.last_playing),
+                    role = user.role == UserRole.SuperAdmin ? "admin" : "user"
                 });
             } else {
                 return new JsonResult(new {

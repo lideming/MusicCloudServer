@@ -30,14 +30,18 @@ namespace MCloudServer.Controllers
             var sb = new StringBuilder();
 
             try {
-                if (arg == "fill_tracks_info") {
+                if (arg == "tracks_migration") {
                     result = "ok";
                     var listOk = new List<int>();
                     var listFail = new List<int>();
-                    await _context.Tracks.Where(t => t.artist == "Unknown").ForEachAsync((t) => {
-                        if (t.url.StartsWith("storage/")) {
+                    await _context.Tracks.Where(t => t.artist == "Unknown" || !t.url.Contains(".")).ForEachAsync((t) => {
+                        if (t.TryGetStoragePath(this._context.MCloudConfig, out var path)) {
                             try {
-                                t.ReadTrackInfoFromFile(_context.MCloudConfig);
+                                var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
+                                System.IO.File.Move(path, path + guessedExt);
+                                t.url += guessedExt;
+                                if (t.artist == "Unknown")
+                                    t.ReadTrackInfoFromFile(_context.MCloudConfig);
                                 listOk.Add(t.id);
                             } catch (Exception) {
                                 listFail.Add(t.id);

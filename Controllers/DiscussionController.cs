@@ -70,7 +70,7 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
 
             var comm = await _context.Comments.FindAsync(id);
-            if (comm.uid != user.id || comm.tag != "diss") return GetErrorResult("bad_comment");
+            if (comm.tag != "diss" || !comm.IsWritableByUser(user)) return GetErrorResult("bad_comment");
 
             _context.Comments.Remove(comm);
             await _context.SaveChangesAsync();
