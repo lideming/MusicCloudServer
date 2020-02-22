@@ -76,6 +76,7 @@ namespace MCloudServer
             services.AddControllers();
             services.AddSingleton<AppService>();
             services.AddSingleton(MyConfigration);
+            services.AddSingleton<MessageService>();
             services.AddDbContext<DbCtx>(options =>
             {
                 if (MyConfigration.DbType == DbType.PostgreSQL)
@@ -142,6 +143,15 @@ namespace MCloudServer
                     ctx.Request.Path = "/api/users/me" + remaining;
                 }
                 return next();
+            });
+
+            app.Use((next) => async (ctx) => {
+                if (ctx.Request.Path == "/ws" && ctx.WebSockets.IsWebSocketRequest) {
+                    var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+                    await ctx.RequestServices.GetService<MessageService>().HandleWebSocket(ws);
+                } else {
+                    await next(ctx);
+                }
             });
 
             app.UseRouting();
