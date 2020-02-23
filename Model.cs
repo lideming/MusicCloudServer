@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -26,6 +27,11 @@ namespace MCloudServer
         public DbSet<List> Lists { get; set; }
         public DbSet<Track> Tracks { get; set; }
         public DbSet<Comment> Comments { get; set; }
+        public DbSet<LoginRecord> Logins { get; set; }
+
+        public UserService UserService { get; set; }
+        public bool IsLogged => UserService.IsLogged;
+        public User User => UserService.User;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -34,6 +40,7 @@ namespace MCloudServer
             modelBuilder.Entity<Track>().ToTable("tracks");
             modelBuilder.Entity<Comment>().ToTable("comments").HasIndex(c => c.tag);
             modelBuilder.Entity<ConfigItem>().ToTable("config");
+            modelBuilder.Entity<LoginRecord>().ToTable("logins");
 
             // Workaround for SQLite:
             if (MCloudConfig.DbType == DbType.SQLite) {
@@ -49,27 +56,24 @@ namespace MCloudServer
                 v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(str => int.Parse(str)).ToList());
         }
 
+        public Task<User> FindUser(string username) => findUser(this, username);
         private static Func<DbCtx, string, Task<User>> findUser
             = EF.CompileAsyncQuery((DbCtx db, string username) =>
                 db.Users.FirstOrDefault(u => u.username == username)
             );
 
+        public Task<LoginRecord> FindLogin(string token) => findLogin(this, token);
+        private static Func<DbCtx, string, Task<LoginRecord>> findLogin
+            = EF.CompileAsyncQuery((DbCtx db, string token) =>
+                db.Logins.Include(l => l.User).FirstOrDefault(l => l.token == token)
+            );
+
         /// <summary>
         /// Check authorization info in the request. Return the user or null.
         /// </summary>
-        public async Task<User> GetUser(HttpContext ctx)
+        public Task<User> GetUser(HttpContext ctx)
         {
-            var auth = ctx.Request.Headers["Authorization"];
-            if (auth.Count != 1) return null;
-            var splits = auth[0].Split(' ');
-            if (splits.Length != 2) return null;
-            var kv = Encoding.UTF8.GetString(Convert.FromBase64String(splits[1])).Split(':');
-            if (kv.Length < 2) return null;
-            var username = kv[0];
-            var passwd = kv[1];
-            var user = await findUser(this, username);
-            if (user == null || !ValidatePassword(passwd, user.passwd)) return null;
-            return user;
+            return Task.FromResult(User);
         }
 
         public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
@@ -191,6 +195,16 @@ namespace MCloudServer
         public List<int> listids { get; set; }
     }
 
+    public class LoginRecord
+    {
+        [Key]
+        public string token { get; set; }
+        public DateTime login_date { get; set; }
+
+        public int UserId { get; set; }
+        public User User { get; set; }
+    }
+
     public class List
     {
         [Key]
@@ -250,8 +264,7 @@ namespace MCloudServer
 
         public bool TryGetStoragePath(MCloudConfig config, out string path)
         {
-            if (this.url.StartsWith("storage/"))
-            {
+            if (this.url.StartsWith("storage/")) {
                 path = Path.Combine(config.StorageDir, this.url.Substring("storage/".Length));
                 return true;
             }
@@ -261,16 +274,14 @@ namespace MCloudServer
 
         public void DeleteFile(MCloudConfig config)
         {
-            if (TryGetStoragePath(config, out var path))
-            {
+            if (TryGetStoragePath(config, out var path)) {
                 File.Delete(path);
             }
         }
 
         public void ReadTrackInfoFromFile(MCloudConfig config)
         {
-            if (TryGetStoragePath(config, out var path))
-            {
+            if (TryGetStoragePath(config, out var path)) {
                 var info = new ATL.Track(path);
                 this.artist = info.Artist;
                 this.name = info.Title;
@@ -355,8 +366,7 @@ namespace MCloudServer
         {
             if (string.IsNullOrEmpty(str)) return new TrackLocation();
             var splits = str.Split('/');
-            return new TrackLocation
-            {
+            return new TrackLocation {
                 listid = int.Parse(splits[0]),
                 position = int.Parse(splits[1]),
                 trackid = int.Parse(splits[2])

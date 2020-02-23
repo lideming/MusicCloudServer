@@ -72,7 +72,6 @@ namespace MCloudServer.Controllers
                 return new JsonResult(new {
                     id = user.id,
                     username = user.username,
-                    // TODO: async
                     lists = lists
                 });
             }
