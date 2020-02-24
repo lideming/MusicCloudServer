@@ -60,7 +60,7 @@ namespace MCloudServer.Controllers
             if (list == null || user == null || list.owner != user.id) return GetErrorResult("list_not_found");
 
             var ids = vm.trackids;
-            var foundTracks = await _context.Tracks.Where(x => ids.Contains(x.id)).ToListAsync();
+            var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
             foundTracks = foundTracks.Where(x => x.IsVisibleToUser(user)).ToList();
             vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
 
