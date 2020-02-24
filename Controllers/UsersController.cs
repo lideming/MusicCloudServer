@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +45,19 @@ namespace MCloudServer.Controllers
             return await GetUser(user, true);
         }
 
-        private async Task<IActionResult> GetUser(User user, bool me = false)
+        [HttpPost("me/login")]
+        public async Task<IActionResult> PostUserLogin()
+        {
+            var user = await GetLoginUser();
+            string token = null;
+            if (user != null) {
+                var record = await _context.UserService.CreateLoginRecord(user);
+                token = record.token;
+            }
+            return await GetUser(user, true, token);
+        }
+
+        private async Task<IActionResult> GetUser(User user, bool me = false, string newToken = null)
         {
             if (user == null) {
                 return GetErrorResult("user_not_found");
@@ -66,8 +79,9 @@ namespace MCloudServer.Controllers
                     lists = lists,
                     servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
                     playing = TrackLocation.Parse(user.last_playing),
-                    role = user.role == UserRole.SuperAdmin ? "admin" : "user"
-                });
+                    role = user.role == UserRole.SuperAdmin ? "admin" : "user",
+                    token = newToken
+                }, new JsonSerializerOptions { IgnoreNullValues = true });
             } else {
                 return new JsonResult(new {
                     id = user.id,

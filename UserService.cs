@@ -42,9 +42,7 @@ namespace MCloudServer
             if (user == null) return null;
             if (DbCtx.ValidatePassword(password, user.passwd) == false) return null;
 
-            var record = CreateLoginRecord_NoSave(user);
-
-            await dbctx.SaveChangesAsync();
+            LoginRecord record = await CreateLoginRecord(user);
 
             SetServiceState(record);
 
@@ -116,6 +114,14 @@ namespace MCloudServer
             this.LoginRecord = record;
             this.User = record?.User;
 
+        }
+
+        public async Task<LoginRecord> CreateLoginRecord(User user)
+        {
+            var record = CreateLoginRecord_NoSave(user);
+
+            await dbctx.SaveChangesAsync();
+            return record;
         }
 
         private LoginRecord CreateLoginRecord_NoSave(User user)
