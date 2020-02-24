@@ -200,6 +200,7 @@ namespace MCloudServer
         [Key]
         public string token { get; set; }
         public DateTime login_date { get; set; }
+        public DateTime last_used { get; set; }
 
         public int UserId { get; set; }
         public User User { get; set; }

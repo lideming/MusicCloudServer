@@ -101,6 +101,11 @@ namespace MCloudServer
                 var token = splits[1];
                 if (string.IsNullOrEmpty(token)) return;
                 record = await dbctx.FindLogin(token);
+                if (record.last_used <= DateTime.Now.AddHours(-1)) {
+                    record.last_used = DateTime.Now;
+                    dbctx.Database.ExecuteSqlRaw("UPDATE logins SET last_used = {0} WHERE token = {1};",
+                        record.last_used, record.token);
+                }
             }
 
             if (record != null)
@@ -129,10 +134,12 @@ namespace MCloudServer
             var tokenBytes = new byte[16];
             RandomNumberGenerator.Fill(tokenBytes);
             var token = Convert.ToBase64String(tokenBytes);
+            var now = DateTime.Now;
             var record = new LoginRecord {
                 token = token,
                 User = user,
-                login_date = DateTime.Now,
+                login_date = now,
+                last_used = now
             };
             dbctx.Logins.Add(record);
             return record;
