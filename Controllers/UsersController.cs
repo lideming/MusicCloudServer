@@ -57,6 +57,13 @@ namespace MCloudServer.Controllers
             return await GetUser(user, true, token);
         }
 
+        [HttpPost("me/logout")]
+        public async Task<IActionResult> PostUserLogout()
+        {
+            await _context.UserService.Logout();
+            return Ok();
+        }
+
         private async Task<IActionResult> GetUser(User user, bool me = false, string newToken = null)
         {
             if (user == null) {
