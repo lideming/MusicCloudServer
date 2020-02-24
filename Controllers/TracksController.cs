@@ -34,7 +34,7 @@ namespace MCloudServer.Controllers
             track.name = vm.name;
             track.artist = vm.artist;
 
-            _context.Entry(track).State = EntityState.Modified;
+            // _context.Entry(track).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track));
@@ -235,7 +235,7 @@ namespace MCloudServer.Controllers
 
             comm.content = vm.content;
 
-            _context.Entry(comm).State = EntityState.Modified;
+            // _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return Ok(comm.ToVM(user));

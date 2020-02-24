@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
@@ -54,6 +55,11 @@ namespace MCloudServer
             prop.HasConversion(
                 v => string.Join(',', v),
                 v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(str => int.Parse(str)).ToList());
+            prop.Metadata.SetValueComparer(new ValueComparer<List<int>>(
+                (a, b) => a.SequenceEqual(b),
+                v => v.GetHashCode(),
+                v => v.ToList()
+            ));
         }
 
         public Task<User> FindUser(string username) => findUser(this, username);

@@ -66,11 +66,12 @@ namespace MCloudServer.Controllers
 
             vm.ApplyToList(list);
 
-            _context.Entry(list).State = EntityState.Modified;
+            // _context.Entry(list).State = EntityState.Modified;
 
             await _context.SaveChangesAsync();
 
-            return RenderList(list);
+            // return RenderList(list);
+            return NoContent();
         }
 
         // POST: api/lists

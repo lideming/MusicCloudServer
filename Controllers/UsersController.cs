@@ -121,7 +121,7 @@ namespace MCloudServer.Controllers
                 user.passwd = DbCtx.HashPassword(newState.passwd);
             }
 
-            _context.Entry(user).State = EntityState.Modified;
+            // _context.Entry(user).State = EntityState.Modified;
             user.version++;
 
             if (await _context.FailedSavingChanges()) goto RETRY;
@@ -137,7 +137,7 @@ namespace MCloudServer.Controllers
 
             RETRY:
             user.last_playing = playing.ToString();
-            _context.Entry(user).State = EntityState.Modified;
+            // _context.Entry(user).State = EntityState.Modified;
             user.version++;
 
             if (await _context.FailedSavingChanges()) goto RETRY;
@@ -188,7 +188,7 @@ namespace MCloudServer.Controllers
                 RETRY:
                 user.lists.Add(list.id);
                 user.version++;
-                _context.Entry(user).State = EntityState.Modified;
+                // _context.Entry(user).State = EntityState.Modified;
                 if (await _context.FailedSavingChanges()) goto RETRY;
 
                 await transa.CommitAsync();
@@ -210,7 +210,7 @@ namespace MCloudServer.Controllers
             _context.Lists.Remove(list);
             user.lists.Remove(list.id);
             user.version++;
-            _context.Entry(user).State = EntityState.Modified;
+            // _context.Entry(user).State = EntityState.Modified;
             if (await _context.FailedSavingChanges()) goto RETRY;
 
             return list.ToTrackListInfo();
@@ -267,7 +267,7 @@ namespace MCloudServer.Controllers
 
             comm.content = vm.content;
 
-            _context.Entry(comm).State = EntityState.Modified;
+            // _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return Ok(comm.ToVM(user));

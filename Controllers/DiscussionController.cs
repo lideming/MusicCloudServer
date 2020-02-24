@@ -57,7 +57,7 @@ namespace MCloudServer.Controllers
 
             comm.content = vm.content;
 
-            _context.Entry(comm).State = EntityState.Modified;
+            // _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return Ok(comm.ToVM(user));
