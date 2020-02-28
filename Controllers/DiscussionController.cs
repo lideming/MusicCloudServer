@@ -41,6 +41,8 @@ namespace MCloudServer.Controllers
             _context.Comments.Add(comm);
             await _context.SaveChangesAsync();
 
+            _message.TriggerEvent("diss-changed");
+
             return CreatedAtAction(nameof(PostComments), comm.ToVM(user));
         }
 
@@ -60,6 +62,8 @@ namespace MCloudServer.Controllers
             // _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
+            _message.TriggerEvent("diss-changed");
+
             return Ok(comm.ToVM(user));
         }
 
@@ -74,6 +78,8 @@ namespace MCloudServer.Controllers
 
             _context.Comments.Remove(comm);
             await _context.SaveChangesAsync();
+
+            _message.TriggerEvent("diss-changed");
 
             return NoContent();
         }

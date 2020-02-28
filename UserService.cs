@@ -86,32 +86,46 @@ namespace MCloudServer
 
         public async Task CheckToken(string auth)
         {
+            var r = await GetLoginFromToken(dbctx, auth);
+
+            if (r.Record != null)
+                SetServiceState(r.Record);
+            else if (r.User != null)
+                this.User = r.User;
+        }
+
+        public static async Task<GetLoginResult> GetLoginFromToken(DbCtx dbctx, string auth)
+        {
             LoginRecord record = null;
             User user = null;
+
             var splits = auth.Split(' ');
-            if (splits.Length != 2) return;
+            if (splits.Length != 2) return default;
             if (splits[0] == "Basic") {
                 var kv = Encoding.UTF8.GetString(Convert.FromBase64String(splits[1])).Split(':');
-                if (kv.Length < 2) return;
+                if (kv.Length < 2) return default;
                 var username = kv[0];
                 var passwd = kv[1];
                 user = await dbctx.FindUser(username);
                 if (user == null || !DbCtx.ValidatePassword(passwd, user.passwd)) user = null;
             } else if (splits[0] == "Bearer") {
                 var token = splits[1];
-                if (string.IsNullOrEmpty(token)) return;
+                if (string.IsNullOrEmpty(token)) return default;
                 record = await dbctx.FindLogin(token);
                 if (record.last_used <= DateTime.Now.AddHours(-1)) {
                     record.last_used = DateTime.Now;
                     dbctx.Database.ExecuteSqlRaw("UPDATE logins SET last_used = {0} WHERE token = {1};",
                         record.last_used, record.token);
                 }
+                user = record.User;
             }
+            return new GetLoginResult { Record = record, User = user };
+        }
 
-            if (record != null)
-                SetServiceState(record);
-            else if (user != null)
-                this.User = user;
+        public struct GetLoginResult
+        {
+            public LoginRecord Record;
+            public User User;
         }
 
         private void SetServiceState(LoginRecord record)

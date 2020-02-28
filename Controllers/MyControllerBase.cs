@@ -17,6 +17,9 @@ namespace MCloudServer.Controllers
         private AppService __app;
         protected AppService _app => __app ?? (__app = this.HttpContext.RequestServices.GetService<AppService>());
 
+        private MessageService __message;
+        protected MessageService _message => __message ?? (__message = this.HttpContext.RequestServices.GetService<MessageService>());
+
         public MyControllerBase(DbCtx context)
         {
             _context = context;
