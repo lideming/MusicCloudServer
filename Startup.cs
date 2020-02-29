@@ -139,6 +139,12 @@ namespace MCloudServer
                     RequestPath = "/api/storage",
                     ServeUnknownFileTypes = true
                 };
+                app.Use(async (ctx, next) => {
+                    if (ctx.Request.Path.StartsWithSegments("/api/storage")) {
+                        ctx.Response.Headers.Add("Cache-Control", "public");
+                    }
+                    await next();
+                });
                 app.UseStaticFiles(fp);
             }
 
