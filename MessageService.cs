@@ -74,85 +74,81 @@ namespace MCloudServer
                 {
                     while (true)
                     {
-                        var json = (await ReceiveJson()).RootElement;
+                        var jsonDoc = await ReceiveJson();
+                        if (jsonDoc == null)
+                        {
+                            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "close normally", CancellationToken.None);
+                            return;
+                        }
+                        var json = jsonDoc.RootElement;
                         var cmd = json.GetProperty("cmd").GetString();
                         var queryId = 0;
-                        if (json.TryGetProperty("query", out var q))
+                        if (json.TryGetProperty("queryId", out var q))
                         {
                             queryId = q.GetInt32();
                         }
-                        while (true)
+                        object response = null;
+                        try
                         {
-                            object response = null;
-                            try
+                            if (cmd == "login")
                             {
-                                if (cmd == "login")
+                                var token = json.GetProperty("token").GetString();
+                                using (var scope = service.CreateScope())
                                 {
-                                    var token = json.GetProperty("token").GetString();
-                                    using (var scope = service.CreateScope())
+                                    var dbctx = scope.ServiceProvider.GetService<DbCtx>();
+                                    var r = await UserService.GetLoginFromToken(dbctx, token);
+                                    if (r.User != null)
                                     {
-                                        var dbctx = scope.ServiceProvider.GetService<DbCtx>();
-                                        var r = await UserService.GetLoginFromToken(dbctx, token);
-                                        if (r.User != null)
+                                        response = new
                                         {
-                                            response = new
-                                            {
-                                                resp = "ok",
-                                                queryId,
-                                                uid = r.User.id,
-                                                username = r.User.username
-                                            };
-                                            lock (service.clients)
-                                            {
-                                                if (this.User == null)
-                                                {
-                                                    service.clients.Add(this);
-                                                }
-                                                this.User = r.User;
-                                            }
-                                        }
-                                        else
+                                            resp = "ok",
+                                            queryId,
+                                            uid = r.User.id,
+                                            username = r.User.username
+                                        };
+                                        SetUser(r.User);
+                                    }
+                                    else
+                                    {
+                                        response = new { resp = "fail", queryId };
+                                    }
+                                }
+                            }
+                            else if (cmd == "listenEvent")
+                            {
+                                var evts = json.GetProperty("events").EnumerateArray()
+                                    .Select(x => x.GetString()).ToList();
+                                lock (service.clients)
+                                {
+                                    foreach (var e in evts)
+                                    {
+                                        if (!ListeningEvents.Contains(e))
                                         {
-                                            response = new { resp = "fail", queryId };
+                                            ListeningEvents.Add(e);
                                         }
                                     }
                                 }
-                                else if (cmd == "listenEvent")
-                                {
-                                    var evts = json.GetProperty("events").EnumerateArray()
-                                        .Select(x => x.GetString()).ToList();
-                                    lock (service.clients)
-                                    {
-                                        foreach (var e in evts)
-                                        {
-                                            if (!ListeningEvents.Contains(e))
-                                            {
-                                                ListeningEvents.Add(e);
-                                            }
-                                        }
-                                    }
-                                    response = new { response = "ok", queryId };
-                                }
-                                else
-                                {
-                                    response = new
-                                    {
-                                        resp = "unknownCmd",
-                                        queryId,
-                                        unknownCmd = cmd
-                                    };
-                                }
+                                response = new { resp = "ok", queryId };
                             }
-                            catch (Exception ex)
+                            else
                             {
-                                service.logger.LogError(ex, "Error handling message.");
-                                response = new { resp = "error", queryId };
+                                response = new
+                                {
+                                    resp = "unknownCmd",
+                                    queryId,
+                                    unknownCmd = cmd
+                                };
                             }
+                        }
+                        catch (Exception ex)
+                        {
+                            service.logger.LogError(ex, "Error handling message.");
+                            response = new { resp = "error", queryId };
+                        }
 
-                            if (response != null)
-                            {
-                                await SendJson(response, response.GetType());
-                            }
+                        if (response != null)
+                        {
+                            await SendJson(response, response.GetType());
                         }
                     }
                 }
@@ -162,12 +158,24 @@ namespace MCloudServer
                 }
                 finally
                 {
-                    if (this.User != null)
-                        lock (service.clients)
-                            if (this.User != null)
-                            {
-                                service.clients.Remove(this);
-                            }
+                    if (this.User != null) SetUser(null);
+                }
+            }
+
+            public void SetUser(User user)
+            {
+                if (this.User == user) return;
+                lock (service.clients)
+                {
+                    if (this.User == null)
+                    {
+                        service.clients.Add(this);
+                    }
+                    if (user == null)
+                    {
+                        service.clients.Remove(this);
+                    }
+                    this.User = user;
                 }
             }
 
@@ -234,14 +242,14 @@ namespace MCloudServer
                 return Send(buf, WebSocketMessageType.Text, true, CancellationToken.None);
             }
 
-            SemaphoreSlim semaphore = new SemaphoreSlim(0, 1);
+            SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
             public async Task Send(byte[] buf, WebSocketMessageType typ, bool endOfMessage, CancellationToken ct)
             {
                 await semaphore.WaitAsync();
                 try
                 {
-                    await ws.SendAsync(buf, WebSocketMessageType.Text, true, CancellationToken.None);
+                    await ws.SendAsync(buf, typ, endOfMessage, CancellationToken.None);
                 }
                 finally
                 {

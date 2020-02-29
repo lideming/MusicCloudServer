@@ -251,6 +251,8 @@ namespace MCloudServer.Controllers
             _context.Comments.Add(comm);
             await _context.SaveChangesAsync();
 
+            _message.TriggerEvent("note-changed", c => c.User.id == user.id);
+
             return CreatedAtAction(nameof(PostNotes), comm.ToVM(user));
         }
 
@@ -270,6 +272,8 @@ namespace MCloudServer.Controllers
             // _context.Entry(comm).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
+            _message.TriggerEvent("note-changed", c => c.User.id == user.id);
+
             return Ok(comm.ToVM(user));
         }
 
@@ -284,6 +288,8 @@ namespace MCloudServer.Controllers
 
             _context.Comments.Remove(comm);
             await _context.SaveChangesAsync();
+
+            _message.TriggerEvent("note-changed", c => c.User.id == user.id);
 
             return NoContent();
         }

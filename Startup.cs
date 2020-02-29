@@ -149,8 +149,10 @@ namespace MCloudServer
                 return next();
             });
 
+            app.UseWebSockets();
+
             app.Use((next) => async (ctx) => {
-                if (ctx.Request.Path == "/ws" && ctx.WebSockets.IsWebSocketRequest) {
+                if (ctx.Request.Path == "/api/ws" && ctx.WebSockets.IsWebSocketRequest) {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                     await ctx.RequestServices.GetService<MessageService>().HandleWebSocket(ws);
                 } else {
