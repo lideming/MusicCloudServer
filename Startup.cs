@@ -39,14 +39,17 @@ namespace MCloudServer
         // "storagedir"
         // the directory to store track files
 
+        public string StorageUrlBase { get; set; }
+
         public string Passcode { get; set; }
         // "passcode"
     }
 
     public enum DbType
     {
-        SQLite,
-        PostgreSQL
+        SQLite = 0,
+        PostgreSQL = 1,
+        Pg = 1,
     }
 
     public class Startup
@@ -54,17 +57,8 @@ namespace MCloudServer
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
-            var dbtype = Configuration["dbtype"];
-            MyConfigration = new MCloudConfig
-            {
-                DbType = (dbtype == "pg") ? DbType.PostgreSQL :
-                    (dbtype == "sqlite" || dbtype == null) ? DbType.SQLite :
-                    throw new Exception($"unknown dbtype {dbtype}"),
-                DbStr = Configuration["dbstr"],
-                StaticDir = Configuration["staticdir"],
-                StorageDir = Configuration["storagedir"] ?? "data/storage",
-                Passcode = Configuration["passcode"]
-            };
+            MyConfigration = configuration.Get<MCloudConfig>();
+            var dbtype = MyConfigration.DbType;
         }
 
         public IConfiguration Configuration { get; }
@@ -104,7 +98,8 @@ namespace MCloudServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx, ILogger<Startup> logger)
         {
-            if (env.IsDevelopment()) {
+            if (env.IsDevelopment())
+            {
                 app.UseDeveloperExceptionPage();
             }
 
@@ -113,34 +108,46 @@ namespace MCloudServer
             dbctx.Database.Migrate();
             AppMigrate(dbctx, logger);
 
-            if (string.IsNullOrEmpty(MyConfigration.Passcode) == false) {
-                app.UsePasscode(new SimplePasscodeOptions {
+            if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
+            {
+                app.UsePasscode(new SimplePasscodeOptions
+                {
                     CookieName = "mcloud_passcode",
-                    Passcode = MyConfigration.Passcode
+                    Passcode = MyConfigration.Passcode,
+                    Filter = ctx => !ctx.Request.Path.StartsWithSegments("/api/storage")
+                                    && !ctx.Request.Path.StartsWithSegments("/.well-known")
                 });
             }
 
-            if (MyConfigration.StaticDir != null) {
+            if (MyConfigration.StaticDir != null)
+            {
                 var fileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StaticDir));
-                app.UseDefaultFiles(new DefaultFilesOptions {
+                app.UseDefaultFiles(new DefaultFilesOptions
+                {
                     FileProvider = fileProvider,
                     DefaultFileNames = new[] { "index.html" }
                 });
-                app.UseStaticFiles(new StaticFileOptions {
+                app.UseStaticFiles(new StaticFileOptions
+                {
                     FileProvider = fileProvider,
+                    ServeUnknownFileTypes = true
                 });
             }
 
-            if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false) {
+            if (string.IsNullOrEmpty(MyConfigration.StorageDir) == false)
+            {
                 string path = Path.Combine(Directory.GetCurrentDirectory(), MyConfigration.StorageDir);
                 Directory.CreateDirectory(path);
-                var fp = new StaticFileOptions {
+                var fp = new StaticFileOptions
+                {
                     FileProvider = new PhysicalFileProvider(path),
                     RequestPath = "/api/storage",
                     ServeUnknownFileTypes = true
                 };
-                app.Use(async (ctx, next) => {
-                    if (ctx.Request.Path.StartsWithSegments("/api/storage")) {
+                app.Use(async (ctx, next) =>
+                {
+                    if (ctx.Request.Path.StartsWithSegments("/api/storage"))
+                    {
                         ctx.Response.Headers.Add("Cache-Control", "public");
                     }
                     await next();
@@ -148,8 +155,10 @@ namespace MCloudServer
                 app.UseStaticFiles(fp);
             }
 
-            app.Use((ctx, next) => {
-                if (ctx.Request.Path.StartsWithSegments("/api/my", out var remaining)) {
+            app.Use((ctx, next) =>
+            {
+                if (ctx.Request.Path.StartsWithSegments("/api/my", out var remaining))
+                {
                     ctx.Request.Path = "/api/users/me" + remaining;
                 }
                 return next();
@@ -157,11 +166,15 @@ namespace MCloudServer
 
             app.UseWebSockets();
 
-            app.Use((next) => async (ctx) => {
-                if (ctx.Request.Path == "/api/ws" && ctx.WebSockets.IsWebSocketRequest) {
+            app.Use((next) => async (ctx) =>
+            {
+                if (ctx.Request.Path == "/api/ws" && ctx.WebSockets.IsWebSocketRequest)
+                {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                     await ctx.RequestServices.GetService<MessageService>().HandleWebSocket(ws);
-                } else {
+                }
+                else
+                {
                     await next(ctx);
                 }
             });
@@ -171,20 +184,24 @@ namespace MCloudServer
             app.UseAuthentication();
             app.UseAuthorization();
 
-            app.UseEndpoints(endpoints => {
+            app.UseEndpoints(endpoints =>
+            {
                 endpoints.MapControllers();
             });
         }
 
         private void AppMigrate(DbCtx dbctx, ILogger logger)
         {
-            dbctx.GetConfig("appver").ContinueWith(async (task) => {
+            dbctx.GetConfig("appver").ContinueWith(async (task) =>
+            {
                 var val = await task;
                 var origVal = val;
-                if (val == null) {
+                if (val == null)
+                {
                     val = "1";
                 }
-                if (val == "1") {
+                if (val == "1")
+                {
                     int count = 0;
                     foreach (var item in dbctx.Tracks.AsNoTracking())
                     {

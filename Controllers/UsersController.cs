@@ -87,6 +87,7 @@ namespace MCloudServer.Controllers
                     servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
                     playing = TrackLocation.Parse(user.last_playing),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
+                    storageUrlBase = _context.MCloudConfig.StorageUrlBase,
                     token = newToken
                 }, new JsonSerializerOptions { IgnoreNullValues = true });
             } else {

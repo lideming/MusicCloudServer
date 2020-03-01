@@ -15,6 +15,7 @@ namespace SimplePasscode
         public string CookieName { get; set; } = "app_passcode";
         public string LoginPath { get; set; } = "/passcode";
         public string LoginPageFile { get; set; } = "passcode.html";
+        public Func<HttpContext, bool> Filter { get; set; }
     }
 
     public class SimplePasscodeMiddleware
@@ -82,7 +83,9 @@ namespace SimplePasscode
     {
         public static void UsePasscode(this IApplicationBuilder app, SimplePasscodeOptions options)
         {
-            app.UseWhen((ctx) => ctx.Request.Cookies[options.CookieName] != options.Passcode,
+            app.UseWhen(
+                (ctx) => ctx.Request.Cookies[options.CookieName] != options.Passcode
+                            && options.Filter?.Invoke(ctx) != false,
                 app => app.UseMiddleware<SimplePasscodeMiddleware>(options));
         }
     }
