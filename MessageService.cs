@@ -152,6 +152,7 @@ namespace MCloudServer
                         }
                     }
                 }
+                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
                     service.logger.LogError(ex, "Error in receiving loop.");
