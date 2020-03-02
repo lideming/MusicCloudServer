@@ -41,6 +41,8 @@ namespace MCloudServer
 
         public string StorageUrlBase { get; set; }
 
+        public string StorageArg { get; set; }
+
         public string Passcode { get; set; }
         // "passcode"
     }
@@ -93,6 +95,15 @@ namespace MCloudServer
             services.AddScoped<UserService>();
             services.AddAuthentication("UserAuth")
                 .AddScheme<AuthenticationSchemeOptions, UserService.AuthHandler>("UserAuth", null);
+            if (MyConfigration.StorageArg?.StartsWith("qcloud:") == true)
+            {
+                services.AddSingleton<StorageService>(
+                    new QcloudStorageService(MyConfigration.StorageArg.Split(':')));
+            }
+            else
+            {
+                services.AddSingleton<StorageService>(new LocalStorageService());
+            }
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

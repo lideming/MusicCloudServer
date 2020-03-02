@@ -119,7 +119,7 @@ namespace MCloudServer.Controllers
                 user.lists = listids;
             }
             if (newState.passwd != null) {
-                user.passwd = DbCtx.HashPassword(newState.passwd);
+                user.passwd = Utils.HashPassword(newState.passwd);
             }
 
             // _context.Entry(user).State = EntityState.Modified;
@@ -165,7 +165,7 @@ namespace MCloudServer.Controllers
             var user = new User {
                 role = UserRole.User,
                 username = userreg.username,
-                passwd = DbCtx.HashPassword(userreg.passwd),
+                passwd = Utils.HashPassword(userreg.passwd),
                 lists = new List<int>()
             };
             _context.Users.Add(user);

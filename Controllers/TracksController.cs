@@ -40,6 +40,96 @@ namespace MCloudServer.Controllers
             return new JsonResult(TrackVM.FromTrack(track));
         }
 
+        [HttpPost("uploadrequest")]
+        public async Task<ActionResult> UploadRequest([FromBody] UploadRequestArg arg)
+        {
+            if (!_context.IsLogged) return GetErrorResult("no_login");
+
+            if (arg.Size < 0 || arg.Size > 100 * 1024 * 1024)
+                return GetErrorResult("size_out_of_range");
+
+            var extNamePos = arg.Filename.LastIndexOf('.');
+            var extName = extNamePos >= 0 ? arg.Filename.Substring(extNamePos + 1).ToLower() : "mp3";
+            if (!SupportedFileFormats.Contains(extName)) return GetErrorResult("unsupported_file_format");
+            var filename = Guid.NewGuid().ToString("D") + "." + extName;
+            var filepath = "tracks/" + filename;
+
+            if (_app.StorageService.Mode == StorageMode.Direct)
+            {
+                return new JsonResult(new { mode = "direct" });
+            }
+            else
+            {
+                var r = await _app.StorageService.RequestUpload(new RequestUploadOptions
+                {
+                    DestFilePath = filepath,
+                    Length = arg.Size
+                });
+
+                return new JsonResult(new
+                {
+                    mode = "put-url",
+                    url = r.Url,
+                    method = r.Method,
+                    tag = filepath + "|" + _app.SignTag(r.Url + "|" + filepath)
+                });
+            }
+        }
+
+        public class UploadRequestArg
+        {
+            public string Filename { get; set; }
+            public int Size { get; set; }
+        }
+
+        public class UploadResultArg
+        {
+            public string Url { get; set; }
+            public string Filename { get; set; }
+            public string Tag { get; set; }
+        }
+
+        [HttpPost("uploadresult")]
+        public async Task<ActionResult> UploadResult([FromBody]UploadResultArg arg)
+        {
+            if (!_context.IsLogged) return GetErrorResult("no_login");
+
+            var tagSplits = arg.Tag.Split('|');
+            var filepath = tagSplits[0];
+            if (tagSplits[1] != _app.SignTag(arg.Url + "|" + filepath)) return GetErrorResult("invalid_tag");
+
+            var track = new Track
+            {
+                name = arg.Filename,
+                artist = "Unknown",
+                owner = _context.User.id
+            };
+
+            Directory.CreateDirectory(Path.Combine(_context.MCloudConfig.StorageDir, "tracks"));
+            var destFile = Path.Combine(_context.MCloudConfig.StorageDir, filepath);
+
+            await _app.StorageService.GetFile(arg.Url, destFile);
+
+            // Fill the track info, and complete.
+            track.size = (int)new FileInfo(destFile).Length;
+            track.url = "storage/" + filepath;
+            track.owner = _context.User.id;
+            await Task.Run(() =>
+            {
+                try
+                {
+                    track.ReadTrackInfoFromFile(_context.MCloudConfig);
+                }
+                catch
+                {
+                }
+            });
+            _context.Tracks.Add(track);
+            await _context.SaveChangesAsync();
+
+            return new JsonResult(track) { StatusCode = 201 };
+        }
+
         // [Warning! New Binary Format!]
         // When clients upload a new track:
         //
@@ -93,17 +183,22 @@ namespace MCloudServer.Controllers
             var filename = Guid.NewGuid().ToString("D") + "." + extName;
             var tmpfile = Path.Combine(tmpdir, filename);
 
-            try {
-                using (var fs = System.IO.File.Create(tmpfile)) {
+            try
+            {
+                using (var fs = System.IO.File.Create(tmpfile))
+                {
                     var buffer = new byte[64 * 1024];
-                    for (int read, cur = 0; cur < fileLength; cur += read) {
+                    for (int read, cur = 0; cur < fileLength; cur += read)
+                    {
                         read = await stream.ReadAsync(buffer, 0, buffer.Length);
                         if (read == 0) throw new Exception("Unexpected EOF");
                         await fs.WriteAsync(buffer, 0, read);
                     }
                     await stream.CopyToAsync(fs);
                 }
-            } catch (Exception) {
+            }
+            catch (Exception)
+            {
                 System.IO.File.Delete(tmpfile);
                 throw;
             }
@@ -118,10 +213,14 @@ namespace MCloudServer.Controllers
             track.size = fileLength;
             track.url = "storage/tracks/" + filename;
             track.owner = user.id;
-            await Task.Run(() => {
-                try {
+            await Task.Run(() =>
+            {
+                try
+                {
                     track.ReadTrackInfoFromFile(_context.MCloudConfig);
-                } catch {
+                }
+                catch
+                {
                 }
             });
             _context.Tracks.Add(track);
@@ -141,7 +240,8 @@ namespace MCloudServer.Controllers
         {
             int r = 0;
             const string hex = "0123456789abcdefABCDEF";
-            for (int i = 0; i < str.Length; i++) {
+            for (int i = 0; i < str.Length; i++)
+            {
                 var digit = hex.IndexOf(str[i]);
                 if (digit < 0) throw new ArgumentException($"Unexpected char '{str[i]}' parsing hex number");
                 if (digit >= 16) digit -= 6;
@@ -153,7 +253,8 @@ namespace MCloudServer.Controllers
         private async Task<string> ReadString(Stream stream, int len)
         {
             var buf = new byte[len];
-            if (await stream.ReadAsync(buf, 0, len) < len) {
+            if (await stream.ReadAsync(buf, 0, len) < len)
+            {
                 throw new IOException("Unexpected EOF");
             }
             // Note that the length of decoded string might be smaller than bytes length.
@@ -184,7 +285,7 @@ namespace MCloudServer.Controllers
 
             return NoContent();
         }
-        
+
 
         [HttpGet("{trackid}/comments")]
         public async Task<ActionResult> GetComments([FromRoute] int trackid, [FromQuery] int begin)
@@ -207,7 +308,8 @@ namespace MCloudServer.Controllers
             var track = await _context.Tracks.FindAsync(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
-            var comm = new Comment {
+            var comm = new Comment
+            {
                 tag = "track/" + trackid,
                 uid = user.id,
                 date = DateTime.UtcNow,

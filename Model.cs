@@ -133,22 +133,6 @@ namespace MCloudServer
             }
             await this.SaveChangesAsync();
         }
-
-        public static string HashPassword(string passwd)
-        {
-            var salt = new byte[128 / 8];
-            RandomNumberGenerator.Fill(salt);
-            var saltedPasswd = KeyDerivation.Pbkdf2(passwd, salt, KeyDerivationPrf.HMACSHA1, 1000, 128 / 8);
-            return Convert.ToBase64String(saltedPasswd) + "|" + Convert.ToBase64String(salt);
-        }
-
-        public static bool ValidatePassword(string passwd, string saltedBundle)
-        {
-            var splits = saltedBundle.Split('|');
-            var salt = Convert.FromBase64String(splits[1]);
-            var saltedPasswd = KeyDerivation.Pbkdf2(passwd, salt, KeyDerivationPrf.HMACSHA1, 1000, 128 / 8);
-            return Convert.FromBase64String(splits[0]).SequenceEqual(saltedPasswd);
-        }
     }
 
     public class ConfigItem

@@ -13,6 +13,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="3.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.0.1" />
+    <PackageReference Include="Tencent.QCloud.Cos.Sdk" Version="5.4.9" />
     <PackageReference Include="z440.atl.core" Version="2.16.0" />
   </ItemGroup>
 
