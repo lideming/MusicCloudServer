@@ -11,17 +11,20 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace MCloudServer
 {
     public class DbCtx : DbContext
     {
-        public DbCtx(DbContextOptions<DbCtx> options, MCloudConfig mCloudConfig) : base(options)
+        public DbCtx(DbContextOptions<DbCtx> options, AppService app) : base(options)
         {
-            MCloudConfig = mCloudConfig;
+            MCloudConfig = app.Config;
+            App = app;
         }
 
+        public AppService App { get; }
         public MCloudConfig MCloudConfig { get; }
 
         public DbSet<User> Users { get; set; }
@@ -48,6 +51,8 @@ namespace MCloudServer
                 ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
                 ApplyListConversion(modelBuilder.Entity<List>().Property(l => l.trackids));
             }
+
+            ApplyListConversion(modelBuilder.Entity<Track>().Property(t => t.files));
         }
 
         private static void ApplyListConversion(PropertyBuilder<List<int>> prop)
@@ -59,6 +64,18 @@ namespace MCloudServer
                 (a, b) => a.SequenceEqual(b),
                 v => v.GetHashCode(),
                 v => v.ToList()
+            ));
+        }
+
+        private static void ApplyListConversion<T>(PropertyBuilder<List<T>> prop) where T : ICloneable
+        {
+            prop.HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, null),
+                v => string.IsNullOrEmpty(v) ? new List<T>() : JsonSerializer.Deserialize<List<T>>(v, null));
+            prop.Metadata.SetValueComparer(new ValueComparer<List<T>>(
+                (a, b) => a.SequenceEqual(b),
+                v => v.GetHashCode(),
+                v => v.Select(x => (T)x.Clone()).ToList()
             ));
         }
 
@@ -82,11 +99,13 @@ namespace MCloudServer
             return Task.FromResult(User);
         }
 
-        public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
+        public IEnumerable<TrackVM> GetTracks(IEnumerable<int> trackids)
         {
             var ids = trackids.Distinct().ToList();
             var tracks = Tracks.Where(x => ids.Contains(x.id)).ToList();
-            return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i)).Where(x => x != null);
+            return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i))
+                .Where(x => x != null)
+                .Select(x => TrackVM.FromTrack(x, App));
         }
 
         public async Task ChangeAndAutoRetry(Func<Task> func)
@@ -253,6 +272,8 @@ namespace MCloudServer
 
         public string lyrics { get; set; }
 
+        public List<TrackFile> files {get;set;}
+
         public bool TryGetStoragePath(MCloudConfig config, out string path)
         {
             if (this.url.StartsWith("storage/")) {
@@ -285,6 +306,23 @@ namespace MCloudServer
             => user.role == UserRole.SuperAdmin || user.id == this.owner;
     }
 
+    public class TrackFile : ICloneable
+    {
+        public string ConvName { get; set; }
+        public string Format { get; set; }
+
+        public TrackFile Clone() => base.MemberwiseClone() as TrackFile;
+        object ICloneable.Clone() => this.Clone();
+
+        public override bool Equals(object obj)
+            => obj is TrackFile t
+                && ConvName == t.ConvName
+                && Format == t.Format;
+
+        public override int GetHashCode()
+            => HashCode.Combine(ConvName, Format);
+    }
+
     public class TrackVM
     {
         public int id { get; set; }
@@ -294,7 +332,9 @@ namespace MCloudServer
 
         public string lyrics { get; set; }
 
-        public static TrackVM FromTrack(Track t)
+        public List<TrackFileVM> files {get;set;}
+
+        public static TrackVM FromTrack(Track t, AppService app)
         {
             return new TrackVM {
                 id = t.id,
@@ -304,6 +344,13 @@ namespace MCloudServer
                 lyrics = t.lyrics,
             };
         }
+    }
+
+    public class TrackFileVM
+    {
+        public string url { get; set; }
+        public string format { get; set; }
+        public string bitrate { get; set; }
     }
 
     public class Comment
