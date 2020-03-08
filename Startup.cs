@@ -45,6 +45,19 @@ namespace MCloudServer
 
         public string Passcode { get; set; }
         // "passcode"
+
+        public List<Converter> Converters { get; set; }
+
+        public class Converter
+        {
+            public string Name { get; set; }
+            public string Format { get; set; }
+            public int Bitrate { get; set; }
+            public string CommandLine { get; set; }
+
+            public string GetCommandLine(string inputFile, string outputFile)
+                => string.Format(CommandLine, inputFile, outputFile);
+        }
     }
 
     public enum DbType
