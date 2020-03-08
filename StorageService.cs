@@ -22,6 +22,11 @@ namespace MCloudServer
         {
             throw new NotImplementedException();
         }
+
+        public virtual Task DeleteFile(string filepath)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     public enum StorageMode
@@ -39,7 +44,7 @@ namespace MCloudServer
     public class RequestUploadOptions
     {
         public string DestFilePath { get; set; }
-        public int Length { get; set; }
+        public long Length { get; set; }
     }
 
     public class LocalStorageService : StorageService
@@ -101,6 +106,20 @@ namespace MCloudServer
             {
                 await stream.CopyToAsync(fs);
             }
+        }
+
+        public override Task DeleteFile(string filepath)
+        {
+            var url = cos.GenerateSignURL(new COSXML.Model.Tag.PreSignatureStruct
+            {
+                isHttps = true,
+                httpMethod = "DELETE",
+                appid = cosConfig.Appid,
+                bucket = this.bucket,
+                region = cosConfig.Region,
+                key = filepath,
+            });
+            return new HttpClient().DeleteAsync(url);
         }
     }
 }
