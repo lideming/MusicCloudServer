@@ -273,24 +273,32 @@ namespace MCloudServer
 
         public string lyrics { get; set; }
 
+
         public List<TrackFile> files {get;set;}
 
-        public bool TryGetStoragePath(MCloudConfig config, out string path)
-            => config.TryResolveStoragePath(this.url, out path);
+        public bool TryGetStoragePath(AppService app, out string path)
+            => app.Config.TryResolveStoragePath(this.url, out path);
 
-        public void DeleteFile(MCloudConfig config)
+        public void DeleteFile(AppService app)
         {
-            if (TryGetStoragePath(config, out var path)) {
+            if (TryGetStoragePath(app, out var path)) {
                 File.Delete(path);
+            }
+            if (app.StorageService.Mode != StorageMode.Direct) {
+                app.StorageService.DeleteFile(url.Substring("storage/".Length));
             }
         }
 
-        public void ReadTrackInfoFromFile(MCloudConfig config)
+        public void ReadTrackInfoFromFile(AppService app)
         {
-            if (TryGetStoragePath(config, out var path)) {
+            if (TryGetStoragePath(app, out var path)) {
                 var info = new ATL.Track(path);
-                this.artist = info.Artist;
-                this.name = info.Title;
+                var slash = url.LastIndexOf('/');
+                var dot = url.LastIndexOf('.');
+                if (info.Title != url.Substring(slash + 1, dot - slash - 1)) {
+                    this.artist = info.Artist;
+                    this.name = info.Title;
+                }
             }
         }
 

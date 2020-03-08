@@ -31,6 +31,11 @@ namespace MCloudServer
                 await new HttpClient().PutAsync(p.Url, new StreamContent(fs));
             }
         }
+
+        public virtual Task DeleteFile(string filepath)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     public enum StorageMode
@@ -110,6 +115,20 @@ namespace MCloudServer
             {
                 await stream.CopyToAsync(fs);
             }
+        }
+
+        public override Task DeleteFile(string filepath)
+        {
+            var url = cos.GenerateSignURL(new COSXML.Model.Tag.PreSignatureStruct
+            {
+                isHttps = true,
+                httpMethod = "DELETE",
+                appid = cosConfig.Appid,
+                bucket = this.bucket,
+                region = cosConfig.Region,
+                key = filepath,
+            });
+            return new HttpClient().DeleteAsync(url);
         }
     }
 }

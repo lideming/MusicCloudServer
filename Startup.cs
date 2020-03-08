@@ -160,7 +160,7 @@ namespace MCloudServer
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx, ILogger<Startup> logger)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, AppService appService, DbCtx dbctx, ILogger<Startup> logger)
         {
             app.UseForwardedHeaders();
 
@@ -172,7 +172,7 @@ namespace MCloudServer
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             dbctx.Database.Migrate();
-            AppMigrate(dbctx, logger);
+            AppMigrate(appService, dbctx, logger);
 
             if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
             {
@@ -256,7 +256,7 @@ namespace MCloudServer
             });
         }
 
-        private void AppMigrate(DbCtx dbctx, ILogger logger)
+        private void AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
         {
             dbctx.GetConfig("appver").ContinueWith(async (task) =>
             {
@@ -273,7 +273,7 @@ namespace MCloudServer
                     {
                         try
                         {
-                            if (item.TryGetStoragePath(MyConfigration, out var path))
+                            if (item.TryGetStoragePath(appService, out var path))
                             {
                                 item.size = (int)new FileInfo(path).Length;
                                 dbctx.Entry(item).State = EntityState.Modified;

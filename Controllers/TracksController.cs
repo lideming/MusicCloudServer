@@ -92,12 +92,13 @@ namespace MCloudServer.Controllers
         {
             if (!_context.IsLogged) return GetErrorResult("no_login");
 
-            if (arg.Size < 0 || arg.Size > 100 * 1024 * 1024)
+            if (arg.Size < 0 || (arg.Size > 100 * 1024 * 1024 && _context.User.role != UserRole.SuperAdmin))
                 return GetErrorResult("size_out_of_range");
 
             var extNamePos = arg.Filename.LastIndexOf('.');
             var extName = extNamePos >= 0 ? arg.Filename.Substring(extNamePos + 1).ToLower() : "mp3";
-            if (!SupportedFileFormats.Contains(extName)) return GetErrorResult("unsupported_file_format");
+            if (!SupportedFileFormats.Contains(extName) && _context.User.role != UserRole.SuperAdmin)
+                return GetErrorResult("unsupported_file_format");
             var filename = Guid.NewGuid().ToString("D") + "." + extName;
             var filepath = "tracks/" + filename;
 
@@ -118,7 +119,7 @@ namespace MCloudServer.Controllers
                     mode = "put-url",
                     url = r.Url,
                     method = r.Method,
-                    tag = filepath + "|" + _app.SignTag(r.Url + "|" + filepath)
+                    tag = filepath + "|" + arg.Size + "|" + _app.SignTag(r.Url + "|" + filepath + "|" + arg.Size)
                 });
             }
         }
@@ -126,7 +127,7 @@ namespace MCloudServer.Controllers
         public class UploadRequestArg
         {
             public string Filename { get; set; }
-            public int Size { get; set; }
+            public long Size { get; set; }
         }
 
         public class UploadResultArg
@@ -143,34 +144,51 @@ namespace MCloudServer.Controllers
 
             var tagSplits = arg.Tag.Split('|');
             var filepath = tagSplits[0];
-            if (tagSplits[1] != _app.SignTag(arg.Url + "|" + filepath)) return GetErrorResult("invalid_tag");
+            var size = long.Parse(tagSplits[1]);
+            if (tagSplits[2] != _app.SignTag(arg.Url + "|" + filepath + "|" + size))
+                return GetErrorResult("invalid_tag");
 
             var track = new Track
             {
                 name = arg.Filename,
                 artist = "Unknown",
-                owner = _context.User.id
+                owner = _context.User.id,
+                url = "storage/" + filepath,
+                size = size > int.MaxValue ? int.MaxValue : (int)size
             };
 
-            Directory.CreateDirectory(Path.Combine(_context.MCloudConfig.StorageDir, "tracks"));
-            var destFile = Path.Combine(_context.MCloudConfig.StorageDir, filepath);
+            var extNamePos = arg.Filename.LastIndexOf('.');
+            var extName = extNamePos >= 0 ? arg.Filename.Substring(extNamePos + 1).ToLower() : null;
 
-            await _app.StorageService.GetFile(arg.Url, destFile);
-
-            // Fill the track info, and complete.
-            track.size = (int)new FileInfo(destFile).Length;
-            track.url = "storage/" + filepath;
-            track.owner = _context.User.id;
-            await Task.Run(() =>
+            if (extName == null && _context.User.role == UserRole.SuperAdmin)
             {
-                try
+                track.artist = "";
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.Combine(_context.MCloudConfig.StorageDir, "tracks"));
+                var destFile = Path.Combine(_context.MCloudConfig.StorageDir, filepath);
+
+                await _app.StorageService.GetFile(arg.Url, destFile);
+
+                if (new FileInfo(destFile).Length != size)
                 {
-                    track.ReadTrackInfoFromFile(_context.MCloudConfig);
+                    track.DeleteFile(_app);
+                    return GetErrorResult("wrong_size");
                 }
-                catch
+
+                await Task.Run(() =>
                 {
-                }
-            });
+                    try
+                    {
+                        track.ReadTrackInfoFromFile(_app);
+                    }
+                    catch
+                    {
+                    }
+                });
+            }
+
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
@@ -216,7 +234,8 @@ namespace MCloudServer.Controllers
 
             var extNamePos = track.name.LastIndexOf('.');
             var extName = extNamePos >= 0 ? track.name.Substring(extNamePos + 1).ToLower() : "mp3";
-            if (!SupportedFileFormats.Contains(extName)) return GetErrorResult("unsupported_file_format");
+            if (!SupportedFileFormats.Contains(extName) && _context.User.role != UserRole.SuperAdmin)
+                return GetErrorResult("unsupported_file_format");
 
             // Now start reading the file
             var fileLength = await ReadBlockLength(stream);
@@ -264,7 +283,7 @@ namespace MCloudServer.Controllers
             {
                 try
                 {
-                    track.ReadTrackInfoFromFile(_context.MCloudConfig);
+                    track.ReadTrackInfoFromFile(_app);
                 }
                 catch
                 {
@@ -328,7 +347,7 @@ namespace MCloudServer.Controllers
                 return GetErrorResult("track_not_found");
             }
 
-            track.DeleteFile(_app.Config);
+            track.DeleteFile(_app);
 
             return NoContent();
         }

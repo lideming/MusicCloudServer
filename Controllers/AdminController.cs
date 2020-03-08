@@ -35,13 +35,13 @@ namespace MCloudServer.Controllers
                     var listOk = new List<int>();
                     var listFail = new List<int>();
                     await _context.Tracks.Where(t => t.artist == "Unknown" || !t.url.Contains(".") || t.length == 0).ForEachAsync((t) => {
-                        if (t.TryGetStoragePath(this._context.MCloudConfig, out var path)) {
+                        if (t.TryGetStoragePath(_app, out var path)) {
                             try {
                                 var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
                                 System.IO.File.Move(path, path + guessedExt);
                                 t.url += guessedExt;
                                 if (t.artist == "Unknown")
-                                    t.ReadTrackInfoFromFile(_context.MCloudConfig);
+                                    t.ReadTrackInfoFromFile(_app);
                                 listOk.Add(t.id);
                             } catch (Exception) {
                                 listFail.Add(t.id);
