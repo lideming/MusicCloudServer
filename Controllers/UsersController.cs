@@ -224,7 +224,9 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
 
             return new JsonResult(new {
-                tracks = await _context.Tracks.Where(t => t.owner == user.id).ToListAsync()
+                tracks = await _context.Tracks.Where(t => t.owner == user.id)
+                    .Select(x => TrackVM.FromTrack(x, _app))
+                    .ToListAsync()
             });
         }
 

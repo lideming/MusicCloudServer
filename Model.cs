@@ -269,20 +269,14 @@ namespace MCloudServer
         public string artist { get; set; }
         public string url { get; set; }
         public int size { get; set; }
+        public int length { get; set; }
 
         public string lyrics { get; set; }
 
         public List<TrackFile> files {get;set;}
 
         public bool TryGetStoragePath(MCloudConfig config, out string path)
-        {
-            if (this.url.StartsWith("storage/")) {
-                path = Path.Combine(config.StorageDir, this.url.Substring("storage/".Length));
-                return true;
-            }
-            path = null;
-            return false;
-        }
+            => config.TryResolveStoragePath(this.url, out path);
 
         public void DeleteFile(MCloudConfig config)
         {
@@ -310,6 +304,8 @@ namespace MCloudServer
     {
         public string ConvName { get; set; }
         public string Format { get; set; }
+        public int Bitrate { get; set; }
+        public long Size { get; set; }
 
         public TrackFile Clone() => base.MemberwiseClone() as TrackFile;
         object ICloneable.Clone() => this.Clone();
@@ -329,6 +325,8 @@ namespace MCloudServer
         public string name { get; set; }
         public string artist { get; set; }
         public string url { get; set; }
+        public int size { get; set; }
+        public int length { get; set; }
 
         public string lyrics { get; set; }
 
@@ -336,21 +334,52 @@ namespace MCloudServer
 
         public static TrackVM FromTrack(Track t, AppService app)
         {
-            return new TrackVM {
+            var vm = new TrackVM {
                 id = t.id,
                 name = t.name,
                 artist = t.artist,
                 url = t.url,
+                size = t.size,
+                length = t.length,
                 lyrics = t.lyrics,
             };
+            if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
+                vm.files = new List<TrackFileVM>();
+                if (t.files != null) {
+                    foreach (var item in t.files)
+                    {
+                        vm.files.Add(new TrackFileVM {
+                            bitrate = item.Bitrate,
+                            format = item.Format,
+                            url = TrackFileVM.GetUrlWithConv(t.url, item.ConvName)
+                        });
+                    }
+                }
+                if (app.Config.Converters != null) {
+                    foreach (var item in app.Config.Converters)
+                    {
+                        if (t.files?.Any(x => x.ConvName == item.Name) == true) continue;
+                        vm.files.Add(new TrackFileVM {
+                            bitrate = item.Bitrate,
+                            format = item.Format,
+                            urlurl = "tracks/" + t.id  + "/url?conv=" + item.Name
+                        });
+                    }
+                }
+            }
+            return vm;
         }
     }
 
     public class TrackFileVM
     {
         public string url { get; set; }
+        public string urlurl { get; set; }
         public string format { get; set; }
-        public string bitrate { get; set; }
+        public int bitrate { get; set; }
+
+        public static string GetUrlWithConv(string url, string conv)
+            => url + "." + conv;
     }
 
     public class Comment

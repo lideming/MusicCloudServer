@@ -46,7 +46,46 @@ namespace MCloudServer
         public string Passcode { get; set; }
         // "passcode"
 
-        public List<Converter> Converters { get; set; }
+        public List<Converter> Converters { get; set; } = new List<Converter>();
+
+        public bool ConverterDebug { get; set; }
+
+        public bool TryResolveStoragePath(string prefixedPath, out string fsPath)
+        {
+            if (TryGetStoragePath(prefixedPath, out fsPath))
+            {
+                fsPath = Path.Combine(StorageDir, fsPath);
+                return true;
+            }
+            return false;
+        }
+
+        public bool TryGetStoragePath(string prefixedPath, out string relPath)
+        {
+            if (prefixedPath.StartsWith("storage/"))
+            {
+                relPath = prefixedPath.Substring("storage/".Length);
+                return true;
+            }
+            relPath = null;
+            return false;
+        }
+
+        public string ResolveStoragePath(string storagePath)
+        {
+            if (!TryResolveStoragePath(storagePath, out var r))
+                throw new Exception($"Failed to resolve storage path '{storagePath}'");
+            return r;
+        }
+
+        public string GetStoragePath(string storagePath)
+        {
+            if (!TryGetStoragePath(storagePath, out var r))
+                throw new Exception($"Failed to get storage path '{storagePath}'");
+            return r;
+        }
+
+        public Converter FindConverter(string name) => Converters.Find(x => x.Name == name);
 
         public class Converter
         {
@@ -87,6 +126,7 @@ namespace MCloudServer
             services.AddSingleton<AppService>();
             services.AddSingleton(MyConfigration);
             services.AddSingleton<MessageService>();
+            services.AddSingleton<ConvertService>();
             services.AddDbContext<DbCtx>(options =>
             {
                 if (MyConfigration.DbType == DbType.PostgreSQL)
@@ -122,6 +162,8 @@ namespace MCloudServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbCtx dbctx, ILogger<Startup> logger)
         {
+            app.UseForwardedHeaders();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();

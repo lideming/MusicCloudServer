@@ -37,7 +37,54 @@ namespace MCloudServer.Controllers
             // _context.Entry(track).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return new JsonResult(TrackVM.FromTrack(track));
+            return new JsonResult(TrackVM.FromTrack(track, _app));
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult> GetTrack(int id)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = _context.Tracks.Find(id);
+            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+
+            return new JsonResult(TrackVM.FromTrack(track, _app));
+        }
+
+        [HttpGet("{id}/url")]
+        public async Task<ActionResult> GetTrackUrl(int id, [FromQuery] string conv, [FromServices] ConvertService cs)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = _context.Tracks.Find(id);
+            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+
+            if (conv == null) return new JsonResult(new { url = track.url });
+
+            if (track.files == null) track.files = new List<TrackFile>();
+            var file = track.files.Find(x => x.ConvName == conv);
+            if (file != null) return new JsonResult(new
+            {
+                url = TrackFileVM.GetUrlWithConv(track.url, file.ConvName)
+            });
+
+            var convObj = _context.MCloudConfig.FindConverter(conv);
+            if (convObj == null) return GetErrorResult("conv_not_found");
+
+            var r = await cs.GetConverted(_context, track, convObj);
+            if (!r.AlreadyExisted)
+            {
+            RETRY:
+                track.files.Add(r.TrackFile);
+                if (await _context.FailedSavingChanges()) goto RETRY;
+            }
+
+            return new JsonResult(new
+            {
+                url = TrackFileVM.GetUrlWithConv(track.url, conv)
+            });
         }
 
         [HttpPost("uploadrequest")]

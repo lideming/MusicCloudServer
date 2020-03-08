@@ -5,10 +5,11 @@ namespace MCloudServer
 {
     public class AppService
     {
-        public AppService(MCloudConfig config, StorageService storageService)
+        public AppService(MCloudConfig config, StorageService storageService, ConvertService convertService)
         {
             Config = config;
             StorageService = storageService;
+            ConvertService = convertService;
             StartTime = DateTime.Now;
 
             signKey = new byte[16];
@@ -18,6 +19,8 @@ namespace MCloudServer
         public MCloudConfig Config { get; }
 
         public StorageService StorageService { get; }
+
+        public ConvertService ConvertService { get; }
 
         public DateTime StartTime { get; }
 

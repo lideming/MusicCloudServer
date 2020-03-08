@@ -22,6 +22,15 @@ namespace MCloudServer
         {
             throw new NotImplementedException();
         }
+
+        public virtual async Task PutFile(RequestUploadOptions options, string srcFilePath)
+        {
+            var p = await RequestUpload(options);
+            using (var fs = File.OpenRead(srcFilePath))
+            {
+                await new HttpClient().PutAsync(p.Url, new StreamContent(fs));
+            }
+        }
     }
 
     public enum StorageMode
@@ -39,7 +48,7 @@ namespace MCloudServer
     public class RequestUploadOptions
     {
         public string DestFilePath { get; set; }
-        public int Length { get; set; }
+        public long Length { get; set; }
     }
 
     public class LocalStorageService : StorageService
