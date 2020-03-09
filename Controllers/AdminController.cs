@@ -34,14 +34,17 @@ namespace MCloudServer.Controllers
                     result = "ok";
                     var listOk = new List<int>();
                     var listFail = new List<int>();
-                    await _context.Tracks.Where(t => t.artist == "Unknown" || !t.url.Contains(".") || t.length == 0).ForEachAsync((t) => {
+                    await _context.Tracks
+                        .Where(t => t.artist == "Unknown" || !t.url.Contains(".") || t.length == 0)
+                        .ForEachAsync((t) => {
                         if (t.TryGetStoragePath(_app, out var path)) {
                             try {
-                                var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
-                                System.IO.File.Move(path, path + guessedExt);
-                                t.url += guessedExt;
-                                if (t.artist == "Unknown")
-                                    t.ReadTrackInfoFromFile(_app);
+                                if (!t.url.Contains(".")) {
+                                    var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
+                                    System.IO.File.Move(path, path + guessedExt);
+                                    t.url += guessedExt;
+                                } 
+                                t.ReadTrackInfoFromFile(_app);
                                 listOk.Add(t.id);
                             } catch (Exception) {
                                 listFail.Add(t.id);
@@ -55,6 +58,27 @@ namespace MCloudServer.Controllers
                     result = "ok";
                     var sql = await new StreamReader(this.HttpContext.Request.Body, Encoding.UTF8).ReadToEndAsync();
                     sb.Append("affected: ").Append(await _context.Database.ExecuteSqlRawAsync(sql));
+                } else if (arg == "trackfiles_cleanup") {
+                    result = "ok";
+                    var dict = _app.Config.Converters.ToDictionary(c => c.Name);
+                    await _context.Tracks.ForEachAsync(t => {
+                        if (t.files?.Count > 0) {
+                            for (int i = t.files.Count - 1; i >= 0; i--)
+                            {
+                                TrackFile item = t.files[i];
+                                if (dict.ContainsKey(item.ConvName) == false) {
+                                    t.files.RemoveAt(i);
+                                    var url = TrackFileVM.GetUrlWithConv(t.url, item.ConvName);
+                                    System.IO.File.Delete(_app.Config.ResolveStoragePath(url));
+                                    if (_app.StorageService.Mode != StorageMode.Direct) {
+                                        _app.StorageService.DeleteFile(_app.Config.GetStoragePath(url));
+                                    }
+                                    sb.Append(t.id).Append("-").Append(item.ConvName).Append(" ");
+                                }
+                            }
+                        }
+                    });
+                    await _context.SaveChangesAsync();
                 }
             } catch (Exception ex) {
                 result = "error";

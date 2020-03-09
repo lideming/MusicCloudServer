@@ -97,20 +97,22 @@ namespace MCloudServer
 
                 string convCmdline = Conv.GetCommandLine(inputPath, outputPath);
 
+                var debug = Dbctx.MCloudConfig.ConverterDebug;
+
                 bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
                 var psi = new ProcessStartInfo(windows ? "cmd.exe" : "bash")
                 {
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true
+                    RedirectStandardError = debug,
+                    RedirectStandardOutput = debug
                 };
                 psi.ArgumentList.Add(windows ? "/c" : "-c");
                 psi.ArgumentList.Add(convCmdline);
                 logger.LogInformation("run cmdline: {cmdline}", convCmdline);
                 var proc = Process.Start(psi);
 
-                if (Dbctx.MCloudConfig.ConverterDebug)
+                if (debug)
                 {
                     proc.OutputDataReceived += (s, e) =>
                     {
@@ -140,7 +142,7 @@ namespace MCloudServer
 
                 if (Dbctx.App.StorageService.Mode != StorageMode.Direct)
                 {
-                    logger.LogInformation("{id}-{conv} uploading to storage service...", Track.id, Conv.Name);
+                    logger.LogInformation("'{id}-{conv}' uploading to storage service...", Track.id, Conv.Name);
                     await Dbctx.App.StorageService.PutFile(new RequestUploadOptions
                     {
                         DestFilePath = Dbctx.MCloudConfig.GetStoragePath(outputUrl),

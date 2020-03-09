@@ -285,7 +285,7 @@ namespace MCloudServer
                 File.Delete(path);
             }
             if (app.StorageService.Mode != StorageMode.Direct) {
-                app.StorageService.DeleteFile(url.Substring("storage/".Length));
+                app.StorageService.DeleteFile(app.Config.GetStoragePath(url));
             }
         }
 
@@ -295,9 +295,12 @@ namespace MCloudServer
                 var info = new ATL.Track(path);
                 var slash = url.LastIndexOf('/');
                 var dot = url.LastIndexOf('.');
+                this.artist = info.Artist;
                 if (info.Title != url.Substring(slash + 1, dot - slash - 1)) {
-                    this.artist = info.Artist;
                     this.name = info.Title;
+                }
+                if (info.Duration != 0) {
+                    this.length = info.Duration;
                 }
             }
         }
@@ -352,7 +355,13 @@ namespace MCloudServer
                 lyrics = t.lyrics,
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
+                var origBitrate = t.length > 0 ? t.size / t.length / 128 : 0;
                 vm.files = new List<TrackFileVM>();
+                vm.files.Add(new TrackFileVM {
+                    bitrate = origBitrate,
+                    format = t.url.Contains('.') ? t.url.Substring(t.url.IndexOf('.') + 1) : "",
+                    url = t.url
+                });
                 if (t.files != null) {
                     foreach (var item in t.files)
                     {
@@ -366,6 +375,7 @@ namespace MCloudServer
                 if (app.Config.Converters != null) {
                     foreach (var item in app.Config.Converters)
                     {
+                        if (origBitrate / 2 < item.Bitrate) continue;
                         if (t.files?.Any(x => x.ConvName == item.Name) == true) continue;
                         vm.files.Add(new TrackFileVM {
                             bitrate = item.Bitrate,
