@@ -68,7 +68,7 @@ namespace MCloudServer.Controllers
                                 TrackFile item = t.files[i];
                                 if (dict.ContainsKey(item.ConvName) == false) {
                                     t.files.RemoveAt(i);
-                                    var url = TrackFileVM.GetUrlWithConv(t.url, item.ConvName);
+                                    var url = t.ConvUrl(item.ConvName);
                                     System.IO.File.Delete(_app.Config.ResolveStoragePath(url));
                                     if (_app.StorageService.Mode != StorageMode.Direct) {
                                         _app.StorageService.DeleteFile(_app.Config.GetStoragePath(url));

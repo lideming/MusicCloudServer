@@ -67,7 +67,7 @@ namespace MCloudServer.Controllers
             var file = track.files.Find(x => x.ConvName == conv);
             if (file != null) return new JsonResult(new
             {
-                url = TrackFileVM.GetUrlWithConv(track.url, file.ConvName)
+                url = track.ConvUrl(conv)
             });
 
             var convObj = _context.MCloudConfig.FindConverter(conv);
@@ -83,7 +83,7 @@ namespace MCloudServer.Controllers
 
             return new JsonResult(new
             {
-                url = TrackFileVM.GetUrlWithConv(track.url, conv)
+                url = track.ConvUrl(conv)
             });
         }
 
@@ -192,7 +192,7 @@ namespace MCloudServer.Controllers
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
-            return new JsonResult(track) { StatusCode = 201 };
+            return new JsonResult(TrackVM.FromTrack(track, _app)) { StatusCode = 201 };
         }
 
         // [Warning! New Binary Format!]
@@ -219,6 +219,9 @@ namespace MCloudServer.Controllers
         {
             if (Request.ContentType != "application/x-mcloud-upload")
                 return GetErrorResult("bad_content_type");
+
+            if (_app.StorageService.Mode != StorageMode.Direct)
+                return GetErrorResult("direct_upload_disabled");
 
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
@@ -292,7 +295,7 @@ namespace MCloudServer.Controllers
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
-            return new JsonResult(track) { StatusCode = 201 };
+            return new JsonResult(TrackVM.FromTrack(track, _app)) { StatusCode = 201 };
         }
 
         private async Task<int> ReadBlockLength(Stream stream)

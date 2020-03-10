@@ -279,6 +279,9 @@ namespace MCloudServer
         public bool TryGetStoragePath(AppService app, out string path)
             => app.Config.TryResolveStoragePath(this.url, out path);
 
+        public string ConvUrl(string conv)
+            => url + "." + conv;
+
         public void DeleteFile(AppService app)
         {
             if (TryGetStoragePath(app, out var path)) {
@@ -286,6 +289,16 @@ namespace MCloudServer
             }
             if (app.StorageService.Mode != StorageMode.Direct) {
                 app.StorageService.DeleteFile(app.Config.GetStoragePath(url));
+            }
+            if (files != null) {
+                foreach (var item in files) {
+                    if (app.Config.TryResolveStoragePath(ConvUrl(item.ConvName), out var fpath)) {
+                        File.Delete(fpath);
+                    }
+                    if (app.StorageService.Mode != StorageMode.Direct) {
+                        app.StorageService.DeleteFile(app.Config.GetStoragePath(ConvUrl(item.ConvName)));
+                    }
+                }
             }
         }
 
@@ -368,7 +381,7 @@ namespace MCloudServer
                         vm.files.Add(new TrackFileVM {
                             bitrate = item.Bitrate,
                             format = item.Format,
-                            url = TrackFileVM.GetUrlWithConv(t.url, item.ConvName)
+                            url = t.ConvUrl(item.ConvName)
                         });
                     }
                 }
@@ -396,8 +409,6 @@ namespace MCloudServer
         public string format { get; set; }
         public int bitrate { get; set; }
 
-        public static string GetUrlWithConv(string url, string conv)
-            => url + "." + conv;
     }
 
     public class Comment

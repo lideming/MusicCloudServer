@@ -89,7 +89,7 @@ namespace MCloudServer
             public async Task RunCore()
             {
                 var url = Track.url;
-                var outputUrl = url + "." + Conv.Name;
+                var outputUrl = Track.ConvUrl(Conv.Name);
                 OutputUrl = outputUrl;
 
                 var inputPath = Dbctx.MCloudConfig.ResolveStoragePath(url);
