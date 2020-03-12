@@ -33,6 +33,7 @@ namespace MCloudServer.Controllers
 
             track.name = vm.name;
             track.artist = vm.artist;
+            if (vm.lyrics != null) track.lyrics = vm.lyrics;
 
             // _context.Entry(track).State = EntityState.Modified;
             await _context.SaveChangesAsync();
