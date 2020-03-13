@@ -34,6 +34,7 @@ namespace MCloudServer.Controllers
             track.name = vm.name;
             track.artist = vm.artist;
             if (vm.lyrics != null) track.lyrics = vm.lyrics;
+            if (vm.visibility != null) track.visibility = vm.visibility.Value;
 
             // _context.Entry(track).State = EntityState.Modified;
             await _context.SaveChangesAsync();
@@ -85,6 +86,26 @@ namespace MCloudServer.Controllers
             return new JsonResult(new
             {
                 url = track.ConvUrl(conv)
+            });
+        }
+
+        [HttpGet]
+        public async Task<ActionResult> FindTracks([FromQuery] string query)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+            if (query == null) return GetErrorResult("no_query");
+
+            query = query.ToLower();
+            var result = _context.Tracks.Where(t =>
+                (t.owner == user.id || t.visibility == Visibility.Public) // visible by user
+                && ((t.name.Length > 0 && query.Contains(t.name.ToLower())) 
+                    || (t.artist.Length > 0 && query.Contains(t.artist.ToLower()))
+                    || t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query))
+            );
+
+            return new JsonResult(new {
+                tracks = result.Select(x => TrackVM.FromTrack(x, _app))
             });
         }
 

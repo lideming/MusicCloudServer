@@ -265,6 +265,7 @@ namespace MCloudServer
         [Key]
         public int id { get; set; }
         public int owner { get; set; } // the id of user that uploads this track
+        public Visibility visibility { get; set; }
         public string name { get; set; }
         public string artist { get; set; }
         public string url { get; set; }
@@ -324,6 +325,11 @@ namespace MCloudServer
             => user.role == UserRole.SuperAdmin || user.id == this.owner;
     }
 
+    public enum Visibility {
+        Private = 0,
+        Public = 1
+    }
+
     public class TrackFile : ICloneable
     {
         public string ConvName { get; set; }
@@ -351,6 +357,7 @@ namespace MCloudServer
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
+        public Visibility? visibility { get; set; }
 
         public string lyrics { get; set; }
 
@@ -365,6 +372,7 @@ namespace MCloudServer
                 url = t.url,
                 size = t.size,
                 length = t.length,
+                visibility = t.visibility,
                 lyrics = t.lyrics,
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
