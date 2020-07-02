@@ -224,6 +224,7 @@ namespace MCloudServer
 
         public List<int> trackids { get; set; }
 
+        [ConcurrencyCheck]
         public int version { get; set; }
 
         public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
@@ -242,6 +243,7 @@ namespace MCloudServer
         public int id { get; set; }
         public string name { get; set; }
         public List<int> trackids { get; set; }
+        public int? version { get; set; }
 
         public List ToList() => ApplyToList(new List());
 

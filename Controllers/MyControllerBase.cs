@@ -46,18 +46,6 @@ namespace MCloudServer.Controllers
             { StatusCode = 450 };
         }
 
-        protected ActionResult RenderList(List list)
-        {
-            if (list == null) return GetErrorResult("list_not_found");
-
-            return new JsonResult(new
-            {
-                id = list.id,
-                name = list.name,
-                tracks = _context.GetTracks(list.trackids)
-            });
-        }
-
         protected ActionResult RenderComments(string tag)
         {
             var query = _context.Comments.Where(c => c.tag == tag);

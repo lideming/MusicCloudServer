@@ -43,9 +43,16 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
 
             var list = await _context.Lists.FindAsync(id);
-            if (list?.owner != user.id) return GetErrorResult("list_not_found");
+            if (list == null) return GetErrorResult("list_not_found");
+            if (list.owner != user.id) return GetErrorResult("list_not_found");
 
-            return RenderList(list);
+            return new JsonResult(new
+            {
+                id = list.id,
+                name = list.name,
+                tracks = _context.GetTracks(list.trackids),
+                version = list.version
+            });
         }
 
         [HttpPut("{id}")]
@@ -58,6 +65,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             var list = await _context.Lists.FindAsync(id);
             if (list == null || user == null || list.owner != user.id) return GetErrorResult("list_not_found");
+            if (vm.version != null && list.version != vm.version) goto LIST_CHANGED;
 
             var ids = vm.trackids;
             var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
@@ -65,13 +73,13 @@ namespace MCloudServer.Controllers
             vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
 
             vm.ApplyToList(list);
+            list.version++;
 
-            // _context.Entry(list).State = EntityState.Modified;
+            if(!await _context.FailedSavingChanges()) goto LIST_CHANGED;
 
-            await _context.SaveChangesAsync();
-
-            // return RenderList(list);
             return NoContent();
+            LIST_CHANGED:
+            return GetErrorResult("list_changed");
         }
 
         // POST: api/lists
