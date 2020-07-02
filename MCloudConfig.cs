@@ -36,6 +36,12 @@ namespace MCloudServer
 
         public bool ConverterDebug { get; set; }
 
+        public bool NotesEnabled { get; set; } = true;
+
+        public bool DiscussionEnabled { get; set; } = true;
+
+        public bool TrackCommentsEnabled { get; set; } = true;
+
         public bool TryResolveStoragePath(string prefixedPath, out string fsPath)
         {
             if (TryGetStoragePath(prefixedPath, out fsPath))

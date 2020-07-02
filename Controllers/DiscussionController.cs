@@ -22,6 +22,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsEnabledForUser(user)) return GetErrorResult("discussion_disabled");
 
             return RenderComments("diss");
         }
@@ -31,6 +32,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsEnabledForUser(user)) return GetErrorResult("discussion_disabled");
 
             var comm = new Comment {
                 tag = "diss",
@@ -51,6 +53,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsEnabledForUser(user)) return GetErrorResult("discussion_disabled");
 
             if (id != vm.id) return GetErrorResult("bad_id");
 
@@ -72,6 +75,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsEnabledForUser(user)) return GetErrorResult("discussion_disabled");
 
             var comm = await _context.Comments.FindAsync(id);
             if (comm.tag != "diss" || !comm.IsWritableByUser(user)) return GetErrorResult("bad_comment");
@@ -83,6 +87,8 @@ namespace MCloudServer.Controllers
 
             return NoContent();
         }
+
+        bool IsEnabledForUser(User user) => _app.Config.DiscussionEnabled || user.role == UserRole.SuperAdmin;
     }
 
 }

@@ -19,13 +19,6 @@ namespace MCloudServer.Controllers
         {
         }
 
-        //// GET: api/Users
-        //[HttpGet]
-        //public async Task<ActionResult<IEnumerable<User>>> GetUsers()
-        //{
-        //    return await _context.Users.ToListAsync();
-        //}
-
         // GET: api/Users/5
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
@@ -84,11 +77,16 @@ namespace MCloudServer.Controllers
                     id = user.id,
                     username = user.username,
                     lists = lists,
-                    servermsg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
                     playing = TrackLocation.Parse(user.last_playing),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
-                    storageUrlBase = _context.MCloudConfig.StorageUrlBase,
-                    token = newToken
+                    token = newToken,
+                    serverOptions = new {
+                        storageUrlBase = _context.MCloudConfig.StorageUrlBase,
+                        msg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
+                        notesEnabled = _app.Config.NotesEnabled,
+                        discussionEnabled = _app.Config.DiscussionEnabled,
+                        trackCommentsEnabled = _app.Config.TrackCommentsEnabled
+                    }
                 }, new JsonSerializerOptions { IgnoreNullValues = true });
             } else {
                 return new JsonResult(new {
@@ -230,11 +228,14 @@ namespace MCloudServer.Controllers
             });
         }
 
+        bool IsNotesEnabled() => _app.Config.NotesEnabled || _context.User.role == UserRole.SuperAdmin;
+
         [HttpGet("me/notes")]
         public async Task<ActionResult> GetNotes([FromQuery] int begin)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            // When notes feature is disabled, users can still view or delete their notes (if exists).
 
             return RenderComments("un/" + user.id);
         }
@@ -244,6 +245,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsNotesEnabled()) return GetErrorResult("notes_disabled");
 
             var comm = new Comment {
                 tag = "un/" + user.id,
@@ -264,6 +266,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsNotesEnabled()) return GetErrorResult("notes_disabled");
 
             if (id != vm.id) return GetErrorResult("bad_id");
 
@@ -285,6 +288,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            //if (!IsNotesEnabled()) return GetErrorResult("notes_disabled");
 
             var comm = await _context.Comments.FindAsync(id);
             if (comm.uid != user.id || comm.tag != "un/" + user.id) return GetErrorResult("bad_comment");

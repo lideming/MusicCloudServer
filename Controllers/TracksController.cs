@@ -377,12 +377,14 @@ namespace MCloudServer.Controllers
             return NoContent();
         }
 
+        bool IsCommentsEnabled(User user) => _app.Config.TrackCommentsEnabled || user.role == UserRole.SuperAdmin;
 
         [HttpGet("{trackid}/comments")]
         public async Task<ActionResult> GetComments([FromRoute] int trackid, [FromQuery] int begin)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsCommentsEnabled(user)) return GetErrorResult("track_comments_disabled");
 
             var track = await _context.Tracks.FindAsync(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
@@ -395,6 +397,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsCommentsEnabled(user)) return GetErrorResult("track_comments_disabled");
 
             var track = await _context.Tracks.FindAsync(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
@@ -417,6 +420,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsCommentsEnabled(user)) return GetErrorResult("track_comments_disabled");
 
             if (id != vm.id) return GetErrorResult("bad_id");
 
@@ -439,6 +443,7 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            if (!IsCommentsEnabled(user)) return GetErrorResult("track_comments_disabled");
 
             var track = await _context.Tracks.FindAsync(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
