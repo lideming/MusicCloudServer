@@ -223,7 +223,7 @@ namespace MCloudServer.Controllers
 
             return new JsonResult(new {
                 tracks = await _context.Tracks.Where(t => t.owner == user.id)
-                    .Select(x => TrackVM.FromTrack(x, _app))
+                    .Select(x => TrackVM.FromTrack(x, _app, false))
                     .ToListAsync()
             });
         }

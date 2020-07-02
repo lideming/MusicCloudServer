@@ -21,7 +21,7 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> PutTrack(int id, TrackVM vm)
+        public async Task<ActionResult> PutTrack(int id, TrackVM vm, int? ifVersion)
         {
             if (id != vm.id) return GetErrorResult("bad_request");
 
@@ -31,6 +31,10 @@ namespace MCloudServer.Controllers
             var track = _context.Tracks.Find(id);
             if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
 
+            if (ifVersion != null && ifVersion.Value != track.version) {
+                return GetErrorResult("track_changed", TrackVM.FromTrack(track, _app, vm.lyrics != null));
+            }
+
             track.name = vm.name;
             track.artist = vm.artist;
             if (vm.lyrics != null) track.lyrics = vm.lyrics;
@@ -39,7 +43,7 @@ namespace MCloudServer.Controllers
             // _context.Entry(track).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return new JsonResult(TrackVM.FromTrack(track, _app));
+            return new JsonResult(TrackVM.FromTrack(track, _app, vm.lyrics != null));
         }
 
         [HttpGet("{id}")]
@@ -51,7 +55,21 @@ namespace MCloudServer.Controllers
             var track = _context.Tracks.Find(id);
             if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
 
-            return new JsonResult(TrackVM.FromTrack(track, _app));
+            return new JsonResult(TrackVM.FromTrack(track, _app, true));
+        }
+
+        [HttpGet("{id}/lyrics")]
+        public async Task<ActionResult> GetTrackLyrics(int id)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            var track = _context.Tracks.Find(id);
+            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+
+            return new JsonResult(new { 
+                lyrics = track.lyrics
+            });
         }
 
         [HttpGet("{id}/url")]
@@ -105,7 +123,7 @@ namespace MCloudServer.Controllers
             );
 
             return new JsonResult(new {
-                tracks = result.Select(x => TrackVM.FromTrack(x, _app))
+                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false))
             });
         }
 
@@ -214,7 +232,7 @@ namespace MCloudServer.Controllers
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
-            return new JsonResult(TrackVM.FromTrack(track, _app)) { StatusCode = 201 };
+            return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 
         // [Warning! New Binary Format!]
@@ -317,7 +335,7 @@ namespace MCloudServer.Controllers
             _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
-            return new JsonResult(TrackVM.FromTrack(track, _app)) { StatusCode = 201 };
+            return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 
         private async Task<int> ReadBlockLength(Stream stream)

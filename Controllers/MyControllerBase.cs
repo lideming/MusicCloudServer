@@ -36,6 +36,16 @@ namespace MCloudServer.Controllers
             { StatusCode = 450 };
         }
 
+        protected ActionResult GetErrorResult<T>(string error, T data)
+        {
+            return new JsonResult(new
+            {
+                error = error,
+                data = data
+            })
+            { StatusCode = 450 };
+        }
+
         protected ActionResult RenderList(List list)
         {
             if (list == null) return GetErrorResult("list_not_found");

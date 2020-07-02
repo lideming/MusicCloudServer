@@ -105,7 +105,7 @@ namespace MCloudServer
             var tracks = Tracks.Where(x => ids.Contains(x.id)).ToList();
             return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i))
                 .Where(x => x != null)
-                .Select(x => TrackVM.FromTrack(x, App));
+                .Select(x => TrackVM.FromTrack(x, App, false));
         }
 
         public async Task ChangeAndAutoRetry(Func<Task> func)
@@ -271,9 +271,9 @@ namespace MCloudServer
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
+        public int version { get; set; }
 
         public string lyrics { get; set; }
-
 
         public List<TrackFile> files {get;set;}
 
@@ -358,12 +358,13 @@ namespace MCloudServer
         public int size { get; set; }
         public int length { get; set; }
         public Visibility? visibility { get; set; }
+        public int version { get; set; }
 
         public string lyrics { get; set; }
 
         public List<TrackFileVM> files {get;set;}
 
-        public static TrackVM FromTrack(Track t, AppService app)
+        public static TrackVM FromTrack(Track t, AppService app, bool withLyrics = false)
         {
             var vm = new TrackVM {
                 id = t.id,
@@ -373,7 +374,7 @@ namespace MCloudServer
                 size = t.size,
                 length = t.length,
                 visibility = t.visibility,
-                lyrics = t.lyrics,
+                lyrics = withLyrics ? (t.lyrics ?? "") : (string.IsNullOrEmpty(t.lyrics) ? "" : null),
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
                 var origBitrate = t.length > 0 ? t.size / t.length / 128 : 0;
