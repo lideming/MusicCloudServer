@@ -271,6 +271,8 @@ namespace MCloudServer
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
+
+        [ConcurrencyCheck]
         public int version { get; set; }
 
         public string lyrics { get; set; }
@@ -358,7 +360,7 @@ namespace MCloudServer
         public int size { get; set; }
         public int length { get; set; }
         public Visibility? visibility { get; set; }
-        public int version { get; set; }
+        public int? version { get; set; }
 
         public string lyrics { get; set; }
 
@@ -375,6 +377,7 @@ namespace MCloudServer
                 length = t.length,
                 visibility = t.visibility,
                 lyrics = withLyrics ? (t.lyrics ?? "") : (string.IsNullOrEmpty(t.lyrics) ? "" : null),
+                version = t.version
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
                 var origBitrate = t.length > 0 ? t.size / t.length / 128 : 0;

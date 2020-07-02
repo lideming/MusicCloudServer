@@ -21,7 +21,7 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> PutTrack(int id, TrackVM vm, int? ifVersion)
+        public async Task<ActionResult> PutTrack(int id, TrackVM vm)
         {
             if (id != vm.id) return GetErrorResult("bad_request");
 
@@ -31,19 +31,28 @@ namespace MCloudServer.Controllers
             var track = _context.Tracks.Find(id);
             if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
 
-            if (ifVersion != null && ifVersion.Value != track.version) {
-                return GetErrorResult("track_changed", TrackVM.FromTrack(track, _app, vm.lyrics != null));
-            }
+            if (vm.version != null && vm.version.Value != track.version) goto TRACK_CHANGED;
 
+            RETRY:
             track.name = vm.name;
             track.artist = vm.artist;
             if (vm.lyrics != null) track.lyrics = vm.lyrics;
             if (vm.visibility != null) track.visibility = vm.visibility.Value;
+            track.version++;
 
             // _context.Entry(track).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            if (await _context.FailedSavingChanges()) {
+                if (vm.version != null) goto TRACK_CHANGED;
+                goto RETRY;
+            }
 
             return new JsonResult(TrackVM.FromTrack(track, _app, vm.lyrics != null));
+
+            TRACK_CHANGED:
+            return new JsonResult(new {
+                error = "track_changed",
+                track = TrackVM.FromTrack(track, _app, vm.lyrics != null)
+            });
         }
 
         [HttpGet("{id}")]
