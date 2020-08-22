@@ -75,7 +75,7 @@ namespace MCloudServer.Controllers
             vm.ApplyToList(list);
             list.version++;
 
-            if(!await _context.FailedSavingChanges()) goto LIST_CHANGED;
+            if(await _context.FailedSavingChanges()) goto LIST_CHANGED;
 
             return NoContent();
             LIST_CHANGED:
