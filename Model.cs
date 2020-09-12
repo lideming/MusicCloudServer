@@ -47,7 +47,8 @@ namespace MCloudServer
             modelBuilder.Entity<LoginRecord>().ToTable("logins");
 
             // Workaround for SQLite:
-            if (MCloudConfig.DbType == DbType.SQLite) {
+            if (MCloudConfig.DbType == DbType.SQLite)
+            {
                 ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
                 ApplyListConversion(modelBuilder.Entity<List>().Property(l => l.trackids));
             }
@@ -99,23 +100,31 @@ namespace MCloudServer
             return Task.FromResult(User);
         }
 
-        public IEnumerable<TrackVM> GetTracks(IEnumerable<int> trackids)
+        public IEnumerable<TrackVM> GetTrackVMs(IEnumerable<int> trackids)
+        {
+            return GetTracks(trackids).Select(x => TrackVM.FromTrack(x, App, false));
+        }
+
+        public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
         {
             var ids = trackids.Distinct().ToList();
             var tracks = Tracks.Where(x => ids.Contains(x.id)).ToList();
             return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i))
-                .Where(x => x != null)
-                .Select(x => TrackVM.FromTrack(x, App, false));
+                .Where(x => x != null);
         }
 
         public async Task ChangeAndAutoRetry(Func<Task> func)
         {
-            retry:
+        retry:
             await func();
-            try {
+            try
+            {
                 await this.SaveChangesAsync();
-            } catch (DbUpdateConcurrencyException ex) {
-                foreach (var item in ex.Entries) {
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                foreach (var item in ex.Entries)
+                {
                     await item.ReloadAsync();
                 }
                 goto retry;
@@ -124,10 +133,14 @@ namespace MCloudServer
 
         public async Task<bool> FailedSavingChanges()
         {
-            try {
+            try
+            {
                 await this.SaveChangesAsync();
-            } catch (DbUpdateConcurrencyException ex) {
-                foreach (var item in ex.Entries) {
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                foreach (var item in ex.Entries)
+                {
                     await item.ReloadAsync();
                 }
                 return true;
@@ -144,10 +157,13 @@ namespace MCloudServer
         public async Task SetConfig(string key, string value)
         {
             var item = await this.FindAsync<ConfigItem>(key);
-            if (item == null) {
+            if (item == null)
+            {
                 item = new ConfigItem { Key = key, Value = value };
                 this.Add(item);
-            } else {
+            }
+            else
+            {
                 item.Value = value;
             }
             await this.SaveChangesAsync();
@@ -215,7 +231,7 @@ namespace MCloudServer
         public User User { get; set; }
     }
 
-    public class List
+    public class List : IOwnership
     {
         [Key]
         public int id { get; set; }
@@ -223,6 +239,8 @@ namespace MCloudServer
         public string name { get; set; }
 
         public List<int> trackids { get; set; }
+
+        public Visibility visibility { get; set; }
 
         [ConcurrencyCheck]
         public int version { get; set; }
@@ -243,6 +261,7 @@ namespace MCloudServer
         public int id { get; set; }
         public string name { get; set; }
         public List<int> trackids { get; set; }
+        public Visibility? visibility { get; set; }
         public int? version { get; set; }
 
         public List ToList() => ApplyToList(new List());
@@ -251,6 +270,7 @@ namespace MCloudServer
         {
             list.id = id;
             list.name = name;
+            if (visibility != null) list.visibility = visibility.Value;
             list.trackids = trackids;
             return list;
         }
@@ -262,7 +282,7 @@ namespace MCloudServer
         public string name { get; set; }
     }
 
-    public class Track
+    public class Track : IOwnership
     {
         [Key]
         public int id { get; set; }
@@ -279,7 +299,7 @@ namespace MCloudServer
 
         public string lyrics { get; set; }
 
-        public List<TrackFile> files {get;set;}
+        public List<TrackFile> files { get; set; }
 
         public bool TryGetStoragePath(AppService app, out string path)
             => app.Config.TryResolveStoragePath(this.url, out path);
@@ -289,18 +309,24 @@ namespace MCloudServer
 
         public void DeleteFile(AppService app)
         {
-            if (TryGetStoragePath(app, out var path)) {
+            if (TryGetStoragePath(app, out var path))
+            {
                 File.Delete(path);
             }
-            if (app.StorageService.Mode != StorageMode.Direct) {
+            if (app.StorageService.Mode != StorageMode.Direct)
+            {
                 app.StorageService.DeleteFile(app.Config.GetStoragePath(url));
             }
-            if (files != null) {
-                foreach (var item in files) {
-                    if (app.Config.TryResolveStoragePath(ConvUrl(item.ConvName), out var fpath)) {
+            if (files != null)
+            {
+                foreach (var item in files)
+                {
+                    if (app.Config.TryResolveStoragePath(ConvUrl(item.ConvName), out var fpath))
+                    {
                         File.Delete(fpath);
                     }
-                    if (app.StorageService.Mode != StorageMode.Direct) {
+                    if (app.StorageService.Mode != StorageMode.Direct)
+                    {
                         app.StorageService.DeleteFile(app.Config.GetStoragePath(ConvUrl(item.ConvName)));
                     }
                 }
@@ -309,29 +335,43 @@ namespace MCloudServer
 
         public void ReadTrackInfoFromFile(AppService app)
         {
-            if (TryGetStoragePath(app, out var path)) {
+            if (TryGetStoragePath(app, out var path))
+            {
                 var info = new ATL.Track(path);
                 var slash = url.LastIndexOf('/');
                 var dot = url.LastIndexOf('.');
                 this.artist = info.Artist;
-                if (info.Title != url.Substring(slash + 1, dot - slash - 1)) {
+                if (info.Title != url.Substring(slash + 1, dot - slash - 1))
+                {
                     this.name = info.Title;
                 }
-                if (info.Duration != 0) {
+                if (info.Duration != 0)
+                {
                     this.length = info.Duration;
                 }
             }
         }
-
-        public bool IsVisibleToUser(User user)
-            => user.role == UserRole.SuperAdmin || user.id == this.owner;
-        public bool IsWritableByUser(User user)
-            => user.role == UserRole.SuperAdmin || user.id == this.owner;
     }
 
-    public enum Visibility {
+    public enum Visibility
+    {
         Private = 0,
         Public = 1
+    }
+
+    public interface IOwnership
+    {
+        Visibility visibility { get; }
+        int owner { get; }
+    }
+
+    public static class OwnershipExtensions
+    {
+        public static bool IsVisibleToUser(this IOwnership thiz, User user)
+            => thiz.visibility == Visibility.Public || IsWritableByUser(thiz, user);
+
+        public static bool IsWritableByUser(this IOwnership thiz, User user)
+            => user != null && (user.role == UserRole.SuperAdmin || user.id == thiz.owner);
     }
 
     public class TrackFile : ICloneable
@@ -361,53 +401,62 @@ namespace MCloudServer
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
+        public int owner { get; set; }
         public Visibility? visibility { get; set; }
         public int? version { get; set; }
 
         public string lyrics { get; set; }
 
-        public List<TrackFileVM> files {get;set;}
+        public List<TrackFileVM> files { get; set; }
 
         public static TrackVM FromTrack(Track t, AppService app, bool withLyrics = false)
         {
-            var vm = new TrackVM {
+            var vm = new TrackVM
+            {
                 id = t.id,
                 name = t.name,
                 artist = t.artist,
                 url = t.url,
                 size = t.size,
                 length = t.length,
+                owner = t.owner,
                 visibility = t.visibility,
                 lyrics = withLyrics ? (t.lyrics ?? "") : (string.IsNullOrEmpty(t.lyrics) ? "" : null),
                 version = t.version
             };
-            if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
+            if (app.Config.Converters?.Count > 0 || t.files?.Count > 0)
+            {
                 var origBitrate = t.length > 0 ? t.size / t.length / 128 : 0;
                 vm.files = new List<TrackFileVM>();
-                vm.files.Add(new TrackFileVM {
+                vm.files.Add(new TrackFileVM
+                {
                     bitrate = origBitrate,
                     format = t.url.Contains('.') ? t.url.Substring(t.url.IndexOf('.') + 1) : "",
                     url = t.url
                 });
-                if (t.files != null) {
+                if (t.files != null)
+                {
                     foreach (var item in t.files)
                     {
-                        vm.files.Add(new TrackFileVM {
+                        vm.files.Add(new TrackFileVM
+                        {
                             bitrate = item.Bitrate,
                             format = item.Format,
                             url = t.ConvUrl(item.ConvName)
                         });
                     }
                 }
-                if (app.Config.Converters != null) {
+                if (app.Config.Converters != null)
+                {
                     foreach (var item in app.Config.Converters)
                     {
                         if (origBitrate / 2 < item.Bitrate) continue;
                         if (t.files?.Any(x => x.ConvName == item.Name) == true) continue;
-                        vm.files.Add(new TrackFileVM {
+                        vm.files.Add(new TrackFileVM
+                        {
                             bitrate = item.Bitrate,
                             format = item.Format,
-                            urlurl = "tracks/" + t.id  + "/url?conv=" + item.Name
+                            urlurl = "tracks/" + t.id + "/url?conv=" + item.Name
                         });
                     }
                 }
@@ -438,7 +487,8 @@ namespace MCloudServer
 
         public string content { get; set; }
 
-        public CommentVM ToVM(User owner) => new CommentVM {
+        public CommentVM ToVM(User owner) => new CommentVM
+        {
             id = this.id,
             uid = this.uid,
             username = owner == null ? "uid" + this.uid : owner.username,
@@ -476,7 +526,8 @@ namespace MCloudServer
         {
             if (string.IsNullOrEmpty(str)) return new TrackLocation();
             var splits = str.Split('/');
-            return new TrackLocation {
+            return new TrackLocation
+            {
                 listid = int.Parse(splits[0]),
                 position = int.Parse(splits[1]),
                 trackid = int.Parse(splits[2])

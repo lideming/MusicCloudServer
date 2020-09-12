@@ -27,23 +27,14 @@ namespace MCloudServer.Controllers
 
         protected Task<User> GetLoginUser() => _context.GetUser(HttpContext);
 
-        protected ActionResult GetErrorResult(string error)
+        protected ErrorResult GetErrorResult(string error)
         {
-            return new JsonResult(new
-            {
-                error = error
-            })
-            { StatusCode = 450 };
+            return new ErrorResult(error);
         }
 
-        protected ActionResult GetErrorResult<T>(string error, T data)
+        protected ErrorResult<T> GetErrorResult<T>(string error, T data)
         {
-            return new JsonResult(new
-            {
-                error = error,
-                data = data
-            })
-            { StatusCode = 450 };
+            return new ErrorResult<T>(error, data);
         }
 
         protected ActionResult RenderComments(string tag)
@@ -56,6 +47,30 @@ namespace MCloudServer.Controllers
             {
                 comments = query.Join(_context.Users, c => c.uid, u => u.id, (c, u) => c.ToVM(u))
             });
+        }
+    }
+
+    public class ErrorResult<T> : ErrorResult
+    {
+        public ErrorResult(string error, T data) : base(new { error, data })
+        {
+            this.StatusCode = 450;
+            this.Data = data;
+        }
+
+        public T Data { get; }
+    }
+
+
+    public class ErrorResult : JsonResult
+    {
+        public ErrorResult(string error) : this(new { error })
+        {
+        }
+
+        internal ErrorResult(object value) : base(value)
+        {
+            this.StatusCode = 450;
         }
     }
 }

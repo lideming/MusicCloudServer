@@ -40,17 +40,20 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> GetList(int id)
         {
             var user = await GetLoginUser();
-            if (user == null) return GetErrorResult("no_login");
+            //if (user == null) return GetErrorResult("no_login");
 
             var list = await _context.Lists.FindAsync(id);
             if (list == null) return GetErrorResult("list_not_found");
-            if (list.owner != user.id) return GetErrorResult("list_not_found");
+            if (list.IsVisibleToUser(user)) return GetErrorResult("list_not_found");
+
+            var tracks = _context.GetTracks(list.trackids)
+                .Where(x => x.IsVisibleToUser(user)).ToList();
 
             return new JsonResult(new
             {
                 id = list.id,
                 name = list.name,
-                tracks = _context.GetTracks(list.trackids),
+                tracks = tracks,
                 version = list.version
             });
         }
@@ -63,8 +66,9 @@ namespace MCloudServer.Controllers
                 return GetErrorResult("bad_request");
             }
             var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
             var list = await _context.Lists.FindAsync(id);
-            if (list == null || user == null || list.owner != user.id) return GetErrorResult("list_not_found");
+            if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
             if (vm.version != null && list.version != vm.version) goto LIST_CHANGED;
 
             var ids = vm.trackids;

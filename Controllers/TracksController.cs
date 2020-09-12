@@ -41,15 +41,17 @@ namespace MCloudServer.Controllers
             track.version++;
 
             // _context.Entry(track).State = EntityState.Modified;
-            if (await _context.FailedSavingChanges()) {
+            if (await _context.FailedSavingChanges())
+            {
                 if (vm.version != null) goto TRACK_CHANGED;
                 goto RETRY;
             }
 
             return new JsonResult(TrackVM.FromTrack(track, _app, vm.lyrics != null));
 
-            TRACK_CHANGED:
-            return new JsonResult(new {
+        TRACK_CHANGED:
+            return new JsonResult(new
+            {
                 error = "track_changed",
                 track = TrackVM.FromTrack(track, _app, vm.lyrics != null)
             });
@@ -59,10 +61,10 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> GetTrack(int id)
         {
             var user = await GetLoginUser();
-            if (user == null) return GetErrorResult("no_login");
+            //if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+            if (track == null || track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
 
             return new JsonResult(TrackVM.FromTrack(track, _app, true));
         }
@@ -71,12 +73,13 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> GetTrackLyrics(int id)
         {
             var user = await GetLoginUser();
-            if (user == null) return GetErrorResult("no_login");
+            //if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+            if (track == null || track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
 
-            return new JsonResult(new { 
+            return new JsonResult(new
+            {
                 lyrics = track.lyrics
             });
         }
@@ -120,18 +123,18 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> FindTracks([FromQuery] string query)
         {
             var user = await GetLoginUser();
-            if (user == null) return GetErrorResult("no_login");
+            //if (user == null) return GetErrorResult("no_login");
             if (query == null) return GetErrorResult("no_query");
 
+            var uid = user?.id ?? 0;
             query = query.ToLower();
             var result = _context.Tracks.Where(t =>
-                (t.owner == user.id || t.visibility == Visibility.Public) // visible by user
-                && ((t.name.Length > 0 && query.Contains(t.name.ToLower())) 
-                    || (t.artist.Length > 0 && query.Contains(t.artist.ToLower()))
-                    || t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query))
+                (t.owner == uid || t.visibility == Visibility.Public) // visible by user
+                && (t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query))
             );
 
-            return new JsonResult(new {
+            return new JsonResult(new
+            {
                 tracks = result.Select(x => TrackVM.FromTrack(x, _app, false))
             });
         }
@@ -187,7 +190,7 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPost("uploadresult")]
-        public async Task<ActionResult> UploadResult([FromBody]UploadResultArg arg)
+        public async Task<ActionResult> UploadResult([FromBody] UploadResultArg arg)
         {
             if (!_context.IsLogged) return GetErrorResult("no_login");
 
@@ -402,6 +405,39 @@ namespace MCloudServer.Controllers
             track.DeleteFile(_app);
 
             return NoContent();
+        }
+
+        [HttpPost("visibility")]
+        public async Task<ActionResult> PostVisibility(VisibilityArg arg)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+
+            RETRY:
+            var ids = arg.trackids.Distinct().ToList();
+            var tracks = await _context.Tracks
+                    .Where(x => ids.Contains(x.id))
+                    .ToListAsync();
+
+            foreach (var id in ids)
+            {
+                var track = tracks.Find(t => t.id == id);
+                if (track?.IsVisibleToUser(user) != true)
+                    return GetErrorResult("track_not_found", new { trackid = id });
+                if (track?.IsWritableByUser(user) != true)
+                    return GetErrorResult("permission_denied", new { trackid = id });
+                track.visibility = arg.visibility;
+            }
+
+            if (await _context.FailedSavingChanges()) goto RETRY;
+
+            return Ok();
+        }
+
+        public class VisibilityArg
+        {
+            public List<int> trackids { get; set; }
+            public Visibility visibility;
         }
 
         bool IsCommentsEnabled(User user) => _app.Config.TrackCommentsEnabled || user.role == UserRole.SuperAdmin;
