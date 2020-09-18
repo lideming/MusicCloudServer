@@ -43,11 +43,12 @@ namespace MCloudServer.Controllers
             //if (user == null) return GetErrorResult("no_login");
 
             var list = await _context.Lists.FindAsync(id);
-            if (list == null) return GetErrorResult("list_not_found");
-            if (list.IsVisibleToUser(user)) return GetErrorResult("list_not_found");
+            if (list?.IsVisibleToUser(user) != true) return GetErrorResult("list_not_found");
 
             var tracks = _context.GetTracks(list.trackids)
-                .Where(x => x.IsVisibleToUser(user)).ToList();
+                .Where(x => x.IsVisibleToUser(user))
+                .Select(x => TrackVM.FromTrack(x, _app, false))
+                .ToList();
 
             return new JsonResult(new
             {

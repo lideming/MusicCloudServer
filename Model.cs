@@ -421,7 +421,7 @@ namespace MCloudServer
                 length = t.length,
                 owner = t.owner,
                 visibility = t.visibility,
-                lyrics = withLyrics ? (t.lyrics ?? "") : (string.IsNullOrEmpty(t.lyrics) ? "" : null),
+                lyrics = string.IsNullOrEmpty(t.lyrics) ? "" : withLyrics ? t.lyrics : null,
                 version = t.version
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0)

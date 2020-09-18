@@ -64,7 +64,7 @@ namespace MCloudServer.Controllers
             //if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             return new JsonResult(TrackVM.FromTrack(track, _app, true));
         }
@@ -76,7 +76,7 @@ namespace MCloudServer.Controllers
             //if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             return new JsonResult(new
             {
