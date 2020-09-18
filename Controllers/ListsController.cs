@@ -23,13 +23,15 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
+            var lists = _context.Lists.Select(l => l.ToTrackListInfo());
+
+            if (user.role != UserRole.SuperAdmin)
+                lists = lists.Where(l => l.owner == user.id || l.visibility == Visibility.Public);
+
             // should return all visible lists for the user
             var ret = new
             {
-                lists = await _context.Lists
-                    .Where(l => l.owner == user.id)
-                    .Select(l => l.ToTrackListInfo())
-                    .ToListAsync()
+                lists = await lists.ToListAsync()
             };
             return new JsonResult(ret);
         }
@@ -53,7 +55,9 @@ namespace MCloudServer.Controllers
             return new JsonResult(new
             {
                 id = list.id,
+                owner = list.owner,
                 name = list.name,
+                visibility = list.visibility,
                 tracks = tracks,
                 version = list.version
             });

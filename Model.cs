@@ -245,14 +245,14 @@ namespace MCloudServer
         [ConcurrencyCheck]
         public int version { get; set; }
 
-        public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM { id = id, name = name };
+        public TrackListInfoVM ToTrackListInfo() => new TrackListInfoVM(this);
     }
 
     public static class ListExtensions
     {
         public static IQueryable<TrackListInfoVM> ToTrackListInfo(this IQueryable<List> lists)
         {
-            return lists.Select(l => new TrackListInfoVM { id = l.id, name = l.name });
+            return lists.Select(l => new TrackListInfoVM { id = l.id, owner = l.owner, name = l.name, visibility = l.visibility });
         }
     }
 
@@ -279,7 +279,19 @@ namespace MCloudServer
     public class TrackListInfoVM
     {
         public int id { get; set; }
+        public int owner { get; set; }
         public string name { get; set; }
+        public Visibility visibility { get; set; }
+
+        public TrackListInfoVM() { }
+
+        public TrackListInfoVM(List list)
+        {
+            id = list.id;
+            owner = list.owner;
+            name = list.name;
+            visibility = list.visibility;
+        }
     }
 
     public class Track : IOwnership
