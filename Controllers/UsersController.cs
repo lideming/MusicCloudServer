@@ -77,7 +77,7 @@ namespace MCloudServer.Controllers
                     id = user.id,
                     username = user.username,
                     lists = lists,
-                    playing = TrackLocation.Parse(user.last_playing),
+                    playing = await GetUserPlaying(user),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
                     token = newToken,
                     serverOptions = new {
@@ -149,8 +149,27 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
+            return new JsonResult(await GetUserPlaying(user));
+        }
 
-            return new JsonResult(TrackLocation.Parse(user.last_playing));
+        private async Task<object> GetUserPlaying(User user)
+        {
+            var location = TrackLocation.Parse(user.last_playing);
+            Track track = null;
+            if (location.trackid != 0)
+            {
+                track = await _context.Tracks.FindAsync(location.trackid);
+                if (track?.IsVisibleToUser(user) != true)
+                    track = null;
+            }
+
+            return new
+            {
+                location.listid,
+                location.position,
+                location.trackid,
+                track = TrackVM.FromTrack(track, _app)
+            };
         }
 
         [HttpPost("new")]
