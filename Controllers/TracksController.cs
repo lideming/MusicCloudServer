@@ -437,7 +437,7 @@ namespace MCloudServer.Controllers
         public class VisibilityArg
         {
             public List<int> trackids { get; set; }
-            public Visibility visibility;
+            public Visibility visibility { get; set; }
         }
 
         bool IsCommentsEnabled(User user) => _app.Config.TrackCommentsEnabled || user.role == UserRole.SuperAdmin;
