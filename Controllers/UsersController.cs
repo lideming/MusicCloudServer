@@ -168,7 +168,7 @@ namespace MCloudServer.Controllers
                 location.listid,
                 location.position,
                 location.trackid,
-                track = TrackVM.FromTrack(track, _app)
+                track = track == null ? null : TrackVM.FromTrack(track, _app) 
             };
         }
 
