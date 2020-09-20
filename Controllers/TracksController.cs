@@ -120,7 +120,7 @@ namespace MCloudServer.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> FindTracks([FromQuery] string query)
+        public async Task<ActionResult> FindTracks([FromQuery] string query, [FromQuery] int? offset)
         {
             var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
@@ -131,7 +131,7 @@ namespace MCloudServer.Controllers
             var result = _context.Tracks.Where(t =>
                 (t.owner == uid || t.visibility == Visibility.Public) // visible by user
                 && (t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query))
-            );
+            ).Skip(offset ?? 0).Take(200);
 
             return new JsonResult(new
             {
