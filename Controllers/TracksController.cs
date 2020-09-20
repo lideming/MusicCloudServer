@@ -143,8 +143,9 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> UploadRequest([FromBody] UploadRequestArg arg)
         {
             if (!_context.IsLogged) return GetErrorResult("no_login");
+            var user = await GetLoginUser();
 
-            if (arg.Size < 0 || (arg.Size > 100 * 1024 * 1024 && _context.User.role != UserRole.SuperAdmin))
+            if (arg.Size < 0 || !user.AllowFileUploadSize(arg.Size))
                 return GetErrorResult("size_out_of_range");
 
             var extNamePos = arg.Filename.LastIndexOf('.');
@@ -266,7 +267,7 @@ namespace MCloudServer.Controllers
         };
 
         [HttpPost("newfile")]
-        [RequestSizeLimit(128 * 1024 * 1024)]
+        [RequestSizeLimit(1024 * 1024 * 1024)]
         public async Task<ActionResult> PostNewFile()
         {
             if (Request.ContentType != "application/x-mcloud-upload")
@@ -294,7 +295,7 @@ namespace MCloudServer.Controllers
 
             // Now start reading the file
             var fileLength = await ReadBlockLength(stream);
-            if (fileLength < 0 || fileLength > 100 * 1024 * 1024)
+            if (fileLength < 0 || !user.AllowFileUploadSize(fileLength))
                 return GetErrorResult("file_len_out_of_range");
 
             // Read the stream into a temp file

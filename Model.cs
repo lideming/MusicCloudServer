@@ -189,6 +189,12 @@ namespace MCloudServer
 
         [ConcurrencyCheck]
         public int version { get; set; }
+
+        public bool AllowFileUploadSize(long size)
+        {
+            if (role == UserRole.SuperAdmin) return true;
+            return size <= 128 * 1024 * 1024;
+        }
     }
 
     public enum UserRole
