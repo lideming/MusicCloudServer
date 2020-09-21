@@ -143,7 +143,7 @@ namespace MCloudServer
             return record;
         }
 
-        private LoginRecord CreateLoginRecord_NoSave(User user)
+        public LoginRecord CreateLoginRecord_NoSave(User user)
         {
             var tokenBytes = new byte[16];
             RandomNumberGenerator.Fill(tokenBytes);

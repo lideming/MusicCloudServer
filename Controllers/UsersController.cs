@@ -186,8 +186,9 @@ namespace MCloudServer.Controllers
                 lists = new List<int>()
             };
             _context.Users.Add(user);
+            var loginRecord = _context.UserService.CreateLoginRecord_NoSave(user);
             await _context.SaveChangesAsync();
-            return await GetUser(user.id);
+            return await GetUser(user, true, loginRecord.token);
         }
 
         // Create a list and add to lists of user
