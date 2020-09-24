@@ -443,6 +443,22 @@ namespace MCloudServer.Controllers
             public Visibility visibility { get; set; }
         }
 
+        [HttpGet("{trackid}/stat")]
+        public async Task<ActionResult> GetStat([FromRoute] int trackid)
+        {
+            var user = await GetLoginUser();
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            var plays = _context.Plays.Where(p => p.trackid == track.id);
+
+            return new JsonResult(new
+            {
+                playcount = await plays.CountAsync(),
+                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time
+            });
+        }
+
         bool IsCommentsEnabled(User user) => _app.Config.TrackCommentsEnabled || user.role == UserRole.SuperAdmin;
 
         [HttpGet("{trackid}/comments")]

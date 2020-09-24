@@ -250,7 +250,7 @@ namespace MCloudServer.Controllers
             }
         }
 
-        // Create a list and add to lists of user
+        // Delete a list
         [HttpDelete("me/lists/{id}")]
         public async Task<ActionResult<TrackListInfoVM>> DeleteMeList(int id)
         {
@@ -280,6 +280,29 @@ namespace MCloudServer.Controllers
                 tracks = await _context.Tracks.Where(t => t.owner == user.id)
                     .Select(x => TrackVM.FromTrack(x, _app, false))
                     .ToListAsync()
+            });
+        }
+
+        [HttpGet("{id}/stat")]
+        public async Task<ActionResult> GetStat([FromRoute] string id)
+        {
+            User user;
+            if (id == "me") {
+                user = await GetLoginUser();
+                if (user == null) return GetErrorResult("no_login");
+            } else {
+                if (!int.TryParse(id, out var numid)) return GetErrorResult("wrong_id");
+                user = await _context.Users.FindAsync(numid);
+                var login = await GetLoginUser();
+                if (user == null || !(user.id == login.id || login.role == UserRole.SuperAdmin)) return GetErrorResult("user_not_found");
+            }
+
+            var plays = _context.Plays.Where(p => p.uid == user.id);
+
+            return new JsonResult(new
+            {
+                playcount = await plays.CountAsync(),
+                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time
             });
         }
 

@@ -121,6 +121,22 @@ namespace MCloudServer.Controllers
             return NoContent();
         }
 
+        [HttpGet("{id}/stat")]
+        public async Task<ActionResult> GetStat([FromRoute] int id)
+        {
+            var user = await GetLoginUser();
+            var list = await _context.Lists.FindAsync(id);
+            if (list?.IsVisibleToUser(user) != true) return GetErrorResult("list_not_found");
+
+            var plays = _context.Plays.Where(p => p.listid == list.id);
+
+            return new JsonResult(new
+            {
+                playcount = await plays.CountAsync(),
+                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time
+            });
+        }
+
         private bool ListExists(int id)
         {
             return _context.Lists.Any(e => e.id == id);
