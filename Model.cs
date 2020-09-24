@@ -32,6 +32,7 @@ namespace MCloudServer
         public DbSet<Track> Tracks { get; set; }
         public DbSet<Comment> Comments { get; set; }
         public DbSet<LoginRecord> Logins { get; set; }
+        public DbSet<PlayRecord> Plays { get; set; }
 
         public UserService UserService { get; set; }
         public bool IsLogged => UserService.IsLogged;
@@ -45,6 +46,15 @@ namespace MCloudServer
             modelBuilder.Entity<Comment>().ToTable("comments").HasIndex(c => c.tag);
             modelBuilder.Entity<ConfigItem>().ToTable("config");
             modelBuilder.Entity<LoginRecord>().ToTable("logins");
+
+            modelBuilder.Entity<PlayRecord>().ToTable("plays");
+            modelBuilder.Entity<PlayRecord>().HasIndex(p => p.uid);
+            modelBuilder.Entity<PlayRecord>().HasIndex(p => p.trackid);
+            modelBuilder.Entity<PlayRecord>().HasIndex(p => p.listid);
+            modelBuilder.Entity<PlayRecord>().HasIndex(p => p.audioprofile);
+            modelBuilder.Entity<PlayRecord>().HasIndex(p => p.time);
+            modelBuilder.Entity<PlayRecord>().HasOne(p => p.Track).WithMany().HasForeignKey(p => p.trackid);
+            modelBuilder.Entity<PlayRecord>().HasOne(p => p.User).WithMany().HasForeignKey(p => p.uid);
 
             // Workaround for SQLite:
             if (MCloudConfig.DbType == DbType.SQLite)
@@ -450,18 +460,14 @@ namespace MCloudServer
                 {
                     bitrate = origBitrate,
                     format = t.url.Contains('.') ? t.url.Substring(t.url.IndexOf('.') + 1) : "",
-                    url = t.url
+                    profile = "",
+                    size = vm.size
                 });
                 if (t.files != null)
                 {
                     foreach (var item in t.files)
                     {
-                        vm.files.Add(new TrackFileVM
-                        {
-                            bitrate = item.Bitrate,
-                            format = item.Format,
-                            url = t.ConvUrl(item.ConvName)
-                        });
+                        vm.files.Add(new TrackFileVM(item));
                     }
                 }
                 if (app.Config.Converters != null)
@@ -474,7 +480,8 @@ namespace MCloudServer
                         {
                             bitrate = item.Bitrate,
                             format = item.Format,
-                            urlurl = "tracks/" + t.id + "/url?conv=" + item.Name
+                            profile = item.Name,
+                            size = -1
                         });
                     }
                 }
@@ -485,11 +492,33 @@ namespace MCloudServer
 
     public class TrackFileVM
     {
-        public string url { get; set; }
-        public string urlurl { get; set; }
+        public string profile { get; set; }
+        public long size { get; set; }
         public string format { get; set; }
         public int bitrate { get; set; }
 
+        public TrackFileVM() { }
+
+        public TrackFileVM(TrackFile f)
+        {
+            profile = f.ConvName;
+            format = f.Format;
+            bitrate = f.Bitrate;
+            size = f.Size;
+        }
+    }
+
+    public class PlayRecord
+    {
+        public int id { get; set; }
+        public int uid { get; set; }
+        public int trackid { get; set; }
+        public int listid { get; set; }
+        public string audioprofile { get; set; }
+        public DateTime time { get; set; }
+
+        public User User { get; set; }
+        public Track Track { get; set; }
     }
 
     public class Comment

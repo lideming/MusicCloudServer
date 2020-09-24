@@ -3,14 +3,16 @@ using System;
 using MCloudServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
-    partial class DbCtxModelSnapshot : ModelSnapshot
+    [Migration("20200924190410_AddPlaysTime")]
+    partial class AddPlaysTime
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -109,12 +111,6 @@ namespace MCloudServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("audioprofile")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("listid")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("time")
                         .HasColumnType("TEXT");
 
@@ -125,10 +121,6 @@ namespace MCloudServer.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("id");
-
-                    b.HasIndex("audioprofile");
-
-                    b.HasIndex("listid");
 
                     b.HasIndex("time");
 

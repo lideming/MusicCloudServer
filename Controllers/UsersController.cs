@@ -43,7 +43,8 @@ namespace MCloudServer.Controllers
         {
             var user = await GetLoginUser();
             string token = null;
-            if (user != null) {
+            if (user != null)
+            {
                 var record = await _context.UserService.CreateLoginRecord(user);
                 token = record.token;
             }
@@ -59,7 +60,8 @@ namespace MCloudServer.Controllers
 
         private async Task<IActionResult> GetUser(User user, bool me = false, string newToken = null)
         {
-            if (user == null) {
+            if (user == null)
+            {
                 return GetErrorResult("user_not_found");
             }
 
@@ -72,15 +74,18 @@ namespace MCloudServer.Controllers
             // get the order right
             lists = user.lists.Select(id => lists.Find(l => l.id == id)).ToList();
 
-            if (me) {
-                return new JsonResult(new {
+            if (me)
+            {
+                return new JsonResult(new
+                {
                     id = user.id,
                     username = user.username,
                     lists = lists,
                     playing = await GetUserPlaying(user),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
                     token = newToken,
-                    serverOptions = new {
+                    serverOptions = new
+                    {
                         storageUrlBase = _context.MCloudConfig.StorageUrlBase,
                         msg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
                         notesEnabled = _app.Config.NotesEnabled,
@@ -88,8 +93,11 @@ namespace MCloudServer.Controllers
                         trackCommentsEnabled = _app.Config.TrackCommentsEnabled
                     }
                 }, new JsonSerializerOptions { IgnoreNullValues = true });
-            } else {
-                return new JsonResult(new {
+            }
+            else
+            {
+                return new JsonResult(new
+                {
                     id = user.id,
                     username = user.username,
                     lists = lists
@@ -103,20 +111,24 @@ namespace MCloudServer.Controllers
         public async Task<IActionResult> PutUser(UserPutVM newState)
         {
             var user = await GetLoginUser();
-            if (user == null || user.id != newState.id || user.username != newState.username) {
+            if (user == null || user.id != newState.id || user.username != newState.username)
+            {
                 return GetErrorResult("check_failed");
             }
 
-            RETRY:
+        RETRY:
 
-            if (newState.listids != null) {
+            if (newState.listids != null)
+            {
                 var listids = newState.listids;
-                if (_context.Lists.Count(l => listids.Contains(l.id)) != listids.Count) {
+                if (_context.Lists.Count(l => listids.Contains(l.id)) != listids.Count)
+                {
                     return GetErrorResult("list_not_found");
                 }
                 user.lists = listids;
             }
-            if (newState.passwd != null) {
+            if (newState.passwd != null)
+            {
                 user.passwd = Utils.HashPassword(newState.passwd);
             }
 
@@ -128,16 +140,36 @@ namespace MCloudServer.Controllers
             return await GetUser(user);
         }
 
+        public class PostMePlayingArg : TrackLocation
+        {
+            public string profile { get; set; }
+        }
+
         [HttpPost("me/playing")]
-        public async Task<IActionResult> PostMePlaying(TrackLocation playing)
+        public async Task<IActionResult> PostMePlaying(PostMePlayingArg playing)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
             RETRY:
+            var track = await _context.Tracks.FindAsync(playing.trackid);
+            var list = playing.listid > 0 ? await _context.Lists.FindAsync(playing.listid) : null;
+            if (track?.IsVisibleToUser(user) == true)
+            {
+                _context.Plays.Add(new PlayRecord
+                {
+                    Track = track,
+                    User = user,
+                    listid = list?.IsVisibleToUser(user) == true ? playing.listid : 0,
+                    audioprofile = playing.profile ?? "",
+                    time = DateTime.Now
+                });
+            }
+
             user.last_playing = playing.ToString();
             // _context.Entry(user).State = EntityState.Modified;
             user.version++;
+
 
             if (await _context.FailedSavingChanges()) goto RETRY;
 
@@ -168,7 +200,7 @@ namespace MCloudServer.Controllers
                 location.listid,
                 location.position,
                 location.trackid,
-                track = track == null ? null : TrackVM.FromTrack(track, _app) 
+                track = track == null ? null : TrackVM.FromTrack(track, _app)
             };
         }
 
@@ -179,7 +211,8 @@ namespace MCloudServer.Controllers
                 return GetErrorResult("bad_arg");
             if (_context.Users.Any(u => u.username == userreg.username))
                 return GetErrorResult("dup_user");
-            var user = new User {
+            var user = new User
+            {
                 role = UserRole.User,
                 username = userreg.username,
                 passwd = Utils.HashPassword(userreg.passwd),
@@ -195,7 +228,8 @@ namespace MCloudServer.Controllers
         [HttpPost("me/lists/new")]
         public async Task<ActionResult<TrackListInfoVM>> PostMeList(ListPutVM vm)
         {
-            using (var transa = await _context.Database.BeginTransactionAsync()) {
+            using (var transa = await _context.Database.BeginTransactionAsync())
+            {
                 var user = await GetLoginUser();
                 if (user == null) return GetErrorResult("no_login");
 
@@ -204,7 +238,7 @@ namespace MCloudServer.Controllers
                 _context.Lists.Add(list);
                 await _context.SaveChangesAsync();
 
-                RETRY:
+            RETRY:
                 user.lists.Add(list.id);
                 user.version++;
                 // _context.Entry(user).State = EntityState.Modified;
@@ -241,7 +275,8 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            return new JsonResult(new {
+            return new JsonResult(new
+            {
                 tracks = await _context.Tracks.Where(t => t.owner == user.id)
                     .Select(x => TrackVM.FromTrack(x, _app, false))
                     .ToListAsync()
@@ -267,7 +302,8 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
             if (!IsNotesEnabled()) return GetErrorResult("notes_disabled");
 
-            var comm = new Comment {
+            var comm = new Comment
+            {
                 tag = "un/" + user.id,
                 uid = user.id,
                 date = DateTime.UtcNow,

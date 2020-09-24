@@ -84,8 +84,13 @@ namespace MCloudServer.Controllers
             });
         }
 
-        [HttpGet("{id}/url")]
-        public async Task<ActionResult> GetTrackUrl(int id, [FromQuery] string conv, [FromServices] ConvertService cs)
+        public class ConvertArg
+        {
+            public string profile { get; set; }
+        }
+
+        [HttpPost("{id}/convert")]
+        public async Task<ActionResult> PostConvert(int id, [FromBody] ConvertArg arg, [FromServices] ConvertService cs)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
@@ -93,30 +98,27 @@ namespace MCloudServer.Controllers
             var track = _context.Tracks.Find(id);
             if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
 
-            if (conv == null) return new JsonResult(new { url = track.url });
+            var profile = arg.profile;
+            if (profile == null) return GetErrorResult("no_profile");
 
             if (track.files == null) track.files = new List<TrackFile>();
-            var file = track.files.Find(x => x.ConvName == conv);
-            if (file != null) return new JsonResult(new
+            var file = track.files.Find(x => x.ConvName == profile);
+            if (file == null)
             {
-                url = track.ConvUrl(conv)
-            });
+                var convObj = _context.MCloudConfig.FindConverter(profile);
+                if (convObj == null) return GetErrorResult("profile_not_found");
 
-            var convObj = _context.MCloudConfig.FindConverter(conv);
-            if (convObj == null) return GetErrorResult("conv_not_found");
-
-            var r = await cs.GetConverted(_context, track, convObj);
-            if (!r.AlreadyExisted)
-            {
-            RETRY:
-                track.files.Add(r.TrackFile);
-                if (await _context.FailedSavingChanges()) goto RETRY;
+                var r = await cs.GetConverted(_context, track, convObj);
+                file = r.TrackFile;
+                if (!r.AlreadyExisted)
+                {
+                RETRY:
+                    track.files.Add(file);
+                    if (await _context.FailedSavingChanges()) goto RETRY;
+                }
             }
 
-            return new JsonResult(new
-            {
-                url = track.ConvUrl(conv)
-            });
+            return new JsonResult(new TrackFileVM(file));
         }
 
         [HttpGet]
