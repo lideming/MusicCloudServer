@@ -459,6 +459,23 @@ namespace MCloudServer.Controllers
             });
         }
 
+        [HttpGet("recentplays")]
+        public async Task<ActionResult> GetRecentPlays()
+        {
+            var plays = _context.Plays.Include(p => p.Track).Where(p => p.Track.visibility == Visibility.Public)
+                    .OrderByDescending(p => p.id).Take(20);
+
+            return new JsonResult(new
+            {
+                recentplays = plays.Select(p => new
+                {
+                    uid = p.uid,
+                    track = TrackVM.FromTrack(p.Track, _app, false),
+                    time = p.time
+                })
+            });
+        }
+
         bool IsCommentsEnabled(User user) => _app.Config.TrackCommentsEnabled || user.role == UserRole.SuperAdmin;
 
         [HttpGet("{trackid}/comments")]
