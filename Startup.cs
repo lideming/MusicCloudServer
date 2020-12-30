@@ -25,7 +25,6 @@ namespace MCloudServer
         {
             Configuration = configuration;
             MyConfigration = configuration.Get<MCloudConfig>();
-            var dbtype = MyConfigration.DbType;
         }
 
         public IConfiguration Configuration { get; }
