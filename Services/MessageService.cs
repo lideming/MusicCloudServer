@@ -81,7 +81,6 @@ namespace MCloudServer
                             return;
                         }
                         var json = jsonDoc.RootElement;
-                        var cmd = json.GetProperty("cmd").GetString();
                         var queryId = 0;
                         if (json.TryGetProperty("queryId", out var q))
                         {
@@ -90,55 +89,7 @@ namespace MCloudServer
                         object response = null;
                         try
                         {
-                            if (cmd == "login")
-                            {
-                                var token = json.GetProperty("token").GetString();
-                                using (var scope = service.CreateScope())
-                                {
-                                    var dbctx = scope.ServiceProvider.GetService<DbCtx>();
-                                    var r = await UserService.GetLoginFromToken(dbctx, token);
-                                    if (r.User != null)
-                                    {
-                                        response = new
-                                        {
-                                            resp = "ok",
-                                            queryId,
-                                            uid = r.User.id,
-                                            username = r.User.username
-                                        };
-                                        SetUser(r.User);
-                                    }
-                                    else
-                                    {
-                                        response = new { resp = "fail", queryId };
-                                    }
-                                }
-                            }
-                            else if (cmd == "listenEvent")
-                            {
-                                var evts = json.GetProperty("events").EnumerateArray()
-                                    .Select(x => x.GetString()).ToList();
-                                lock (service.clients)
-                                {
-                                    foreach (var e in evts)
-                                    {
-                                        if (!ListeningEvents.Contains(e))
-                                        {
-                                            ListeningEvents.Add(e);
-                                        }
-                                    }
-                                }
-                                response = new { resp = "ok", queryId };
-                            }
-                            else
-                            {
-                                response = new
-                                {
-                                    resp = "unknownCmd",
-                                    queryId,
-                                    unknownCmd = cmd
-                                };
-                            }
+                            response = await HandleMessage(json, queryId);
                         }
                         catch (Exception ex)
                         {
@@ -160,6 +111,65 @@ namespace MCloudServer
                 finally
                 {
                     if (this.User != null) SetUser(null);
+                }
+            }
+
+            public async Task<object> HandleMessage(JsonElement json, int queryId)
+            {
+                var cmd = json.GetProperty("cmd").GetString();
+                if (cmd == "login")
+                {
+                    var token = json.GetProperty("token").GetString();
+                    using (var scope = service.CreateScope())
+                    {
+                        var dbctx = scope.ServiceProvider.GetService<DbCtx>();
+                        var r = await UserService.GetLoginFromToken(dbctx, token);
+                        if (r.User != null)
+                        {
+                            SetUser(r.User);
+                            return new
+                            {
+                                resp = "ok",
+                                queryId,
+                                uid = r.User.id,
+                                username = r.User.username
+                            };
+                        }
+                        else
+                        {
+                            return new { resp = "fail", queryId };
+                        }
+                    }
+                }
+                else if (cmd == "listenEvent")
+                {
+                    var evts = json.GetProperty("events").EnumerateArray()
+                        .Select(x => x.GetString()).ToList();
+                    AddEvent(evts);
+                    return new { resp = "ok", queryId };
+                }
+                else
+                {
+                    return new
+                    {
+                        resp = "unknownCmd",
+                        queryId,
+                        unknownCmd = cmd
+                    };
+                }
+            }
+
+            private void AddEvent(List<string> evts)
+            {
+                lock (service.clients)
+                {
+                    foreach (var e in evts)
+                    {
+                        if (!ListeningEvents.Contains(e))
+                        {
+                            ListeningEvents.Add(e);
+                        }
+                    }
                 }
             }
 
