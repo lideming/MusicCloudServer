@@ -86,6 +86,8 @@ namespace MCloudServer.Controllers
 
             if(await _context.FailedSavingChanges()) goto LIST_CHANGED;
 
+            _message.TriggerEvent("l-" + id, c => list.IsVisibleToUser(c.User));
+
             return NoContent();
             LIST_CHANGED:
             return GetErrorResult("list_changed");
