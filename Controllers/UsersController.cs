@@ -66,13 +66,16 @@ namespace MCloudServer.Controllers
             }
 
             // get all needed lists in a single SQL query.
-            var lists = await _context.Lists
-                .Where(l => user.lists.Contains(l.id))
+            var query = await _context.Lists
+                .Where(l => l.owner == user.id || (user.lists.Contains(l.id) && l.visibility == Visibility.Public))
                 .ToTrackListInfo()
                 .ToListAsync();
 
-            // get the order right
-            lists = user.lists.Select(id => lists.Find(l => l.id == id)).ToList();
+            // get the order right, remove unreadable items
+            var lists = user.lists.Select(id => query.Find(l => l.id == id)).Where(x => x != null).ToList();
+
+            // add possible missing items owned by the user
+            lists.AddRange(query.Where(x => !lists.Contains(x)));
 
             if (me)
             {
@@ -121,10 +124,6 @@ namespace MCloudServer.Controllers
             if (newState.listids != null)
             {
                 var listids = newState.listids;
-                if (_context.Lists.Count(l => listids.Contains(l.id)) != listids.Count)
-                {
-                    return GetErrorResult("list_not_found");
-                }
                 user.lists = listids;
             }
             if (newState.passwd != null)
