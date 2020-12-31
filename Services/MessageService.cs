@@ -59,8 +59,12 @@ namespace MCloudServer
             private readonly MessageService service;
             private readonly WebSocket ws;
 
+            public string Id { get; } = Guid.NewGuid().ToString("D");
+            public string Name { get; set; } = "Client";
             public User User { get; private set; }
             public List<string> ListeningEvents { get; } = new List<string>();
+
+            public TrackLocation NowPlaying { get; set; }
 
             public Client(MessageService service, WebSocket ws)
             {
@@ -120,6 +124,11 @@ namespace MCloudServer
                 if (cmd == "login")
                 {
                     var token = json.GetProperty("token").GetString();
+                    if (json.TryGetProperty("name", out var name))
+                    {
+                        Name = name.GetString();
+                    }
+
                     using (var scope = service.CreateScope())
                     {
                         var dbctx = scope.ServiceProvider.GetService<DbCtx>();
@@ -148,6 +157,16 @@ namespace MCloudServer
                     AddEvent(evts);
                     return new { resp = "ok", queryId };
                 }
+                else if (cmd == "getClients")
+                {
+                    if (User == null) return new { resp = "fail", queryId, reason = "no_login" };
+                    return new
+                    {
+                        resp = "ok",
+                        queryId,
+                        clients = GetClients().Select(c => c.GetInfo())
+                    };
+                }
                 else
                 {
                     return new
@@ -173,6 +192,29 @@ namespace MCloudServer
                 }
             }
 
+            private List<Client> GetClients()
+            {
+                lock (service.clients)
+                {
+                    return service.clients.Where(x => x.User.id == this.User.id).ToList();
+                }
+            }
+
+            class Info
+            {
+                public string id;
+                public TrackLocation playing;
+            }
+
+            private Info GetInfo()
+            {
+                return new Info
+                {
+                    id = this.Id,
+                    playing = this.NowPlaying
+                };
+            }
+
             public void SetUser(User user)
             {
                 if (this.User == user) return;
@@ -187,6 +229,7 @@ namespace MCloudServer
                         service.clients.Remove(this);
                     }
                     this.User = user;
+                    // TODO: add/removeClient event
                 }
             }
 
@@ -238,6 +281,16 @@ namespace MCloudServer
                 {
                     cmd = "event",
                     @event = evt
+                });
+            }
+
+            public Task SendEvent<T>(string evt, T data)
+            {
+                return SendJson(new
+                {
+                    cmd = "event",
+                    @event = evt,
+                    data
                 });
             }
 
