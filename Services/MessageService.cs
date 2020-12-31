@@ -35,13 +35,18 @@ namespace MCloudServer
 
         public void TriggerEvent(string evt, Func<Client, bool> condition = null)
         {
+            TriggerEvent<object>(evt, condition, null);
+        }
+
+        public void TriggerEvent<T>(string evt, Func<Client, bool> condition, T data)
+        {
             lock (this.clients)
             {
                 foreach (var c in this.clients)
                 {
                     if (c.ListeningEvents.Contains(evt) && (condition == null || condition(c)))
                     {
-                        c.SendEvent(evt);
+                        c.SendEvent(evt, data);
                     }
                 }
             }
@@ -60,6 +65,7 @@ namespace MCloudServer
             private readonly WebSocket ws;
 
             public string Id { get; } = Guid.NewGuid().ToString("D");
+            public string Token { get; set; }
             public string Name { get; set; } = "Client";
             public User User { get; private set; }
             public List<string> ListeningEvents { get; } = new List<string>();
@@ -114,7 +120,7 @@ namespace MCloudServer
                 }
                 finally
                 {
-                    if (this.User != null) SetUser(null);
+                    if (this.User != null) SetUser(null, null);
                 }
             }
 
@@ -135,7 +141,7 @@ namespace MCloudServer
                         var r = await UserService.GetLoginFromToken(dbctx, token);
                         if (r.User != null)
                         {
-                            SetUser(r.User);
+                            SetUser(r.User, token);
                             return new
                             {
                                 resp = "ok",
@@ -215,7 +221,7 @@ namespace MCloudServer
                 };
             }
 
-            public void SetUser(User user)
+            public void SetUser(User user, string token)
             {
                 if (this.User == user) return;
                 lock (service.clients)
@@ -229,6 +235,7 @@ namespace MCloudServer
                         service.clients.Remove(this);
                     }
                     this.User = user;
+                    this.Token = token;
                     // TODO: add/removeClient event
                 }
             }

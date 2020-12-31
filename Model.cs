@@ -287,7 +287,7 @@ namespace MCloudServer
             list.id = id;
             list.name = name;
             if (visibility != null) list.visibility = visibility.Value;
-            list.trackids = trackids;
+            if (trackids != null) list.trackids = trackids;
             return list;
         }
     }

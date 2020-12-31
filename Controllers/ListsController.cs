@@ -76,17 +76,21 @@ namespace MCloudServer.Controllers
             if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
             if (vm.version != null && list.version != vm.version) goto LIST_CHANGED;
 
-            var ids = vm.trackids;
-            var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
-            foundTracks = foundTracks.Where(x => x.IsVisibleToUser(user)).ToList();
-            vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
+            if (vm.trackids != null) {
+                var ids = vm.trackids;
+                var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
+                foundTracks = foundTracks.Where(x => x.IsVisibleToUser(user)).ToList();
+                vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
+            }
 
             vm.ApplyToList(list);
             list.version++;
 
             if(await _context.FailedSavingChanges()) goto LIST_CHANGED;
 
-            _message.TriggerEvent("l-" + id, c => list.IsVisibleToUser(c.User));
+            _message.TriggerEvent("l-" + id, c => list.IsVisibleToUser(c.User), new {
+                version = list.version
+            });
 
             return NoContent();
             LIST_CHANGED:
