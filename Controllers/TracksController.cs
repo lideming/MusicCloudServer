@@ -29,7 +29,7 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+            if (track?.IsWritableByUser(user) != true) return GetErrorResult("track_not_found");
 
             if (vm.version != null && vm.version.Value != track.version) goto TRACK_CHANGED;
 
@@ -96,7 +96,7 @@ namespace MCloudServer.Controllers
             if (user == null) return GetErrorResult("no_login");
 
             var track = _context.Tracks.Find(id);
-            if (track == null || track.owner != user.id) return GetErrorResult("track_not_found");
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             var profile = arg.profile;
             if (profile == null) return GetErrorResult("no_profile");
