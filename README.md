@@ -4,7 +4,7 @@ The server of MusicCloud implemented in C# with ASP.NET Core.
 
 ## Build/Run Requirements
 
-* [.NET Core SDK 3.0+](https://dotnet.microsoft.com/download/dotnet-core/3.1)
+* [.NET SDK 5](https://dotnet.microsoft.com/download/dotnet-core/3.1)
 * [PostgreSQL](https://www.postgresql.org/) (optional)
 
 ## Build
