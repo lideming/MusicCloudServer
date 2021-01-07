@@ -311,14 +311,7 @@ namespace MCloudServer.Controllers
             {
                 using (var fs = System.IO.File.Create(tmpfile))
                 {
-                    var buffer = new byte[64 * 1024];
-                    for (int read, cur = 0; cur < fileLength; cur += read)
-                    {
-                        read = await stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (read == 0) throw new Exception("Unexpected EOF");
-                        await fs.WriteAsync(buffer, 0, read);
-                    }
-                    await stream.CopyToAsync(fs);
+                    await stream.CopyToAsync(fs, 64 * 1024);
                 }
             }
             catch (Exception)
