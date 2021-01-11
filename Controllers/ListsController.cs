@@ -76,12 +76,13 @@ namespace MCloudServer.Controllers
             if (list == null || list.owner != user.id) return GetErrorResult("list_not_found");
             if (vm.version != null && list.version != vm.version) goto LIST_CHANGED;
 
-            if (vm.trackids != null) {
-                var ids = vm.trackids;
-                var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
-                foundTracks = foundTracks.Where(x => x.IsVisibleToUser(user)).ToList();
-                vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
-            }
+            //// Skip track id checks since we check visibility on reading
+            //if (vm.trackids != null) {
+            //    var ids = vm.trackids;
+            //    var foundTracks = await _context.Tracks.AsNoTracking().Where(x => ids.Contains(x.id)).ToListAsync();
+            //    foundTracks = foundTracks.Where(x => x.IsVisibleToUser(user)).ToList();
+            //    vm.trackids = vm.trackids.Where(x => foundTracks.Any(t => t.id == x)).ToList();
+            //}
 
             vm.ApplyToList(list);
             list.version++;
