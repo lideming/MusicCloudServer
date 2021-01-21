@@ -203,7 +203,7 @@ namespace MCloudServer
         public bool AllowFileUploadSize(long size)
         {
             if (role == UserRole.SuperAdmin) return true;
-            return size <= 128 * 1024 * 1024;
+            return size <= 256 * 1024 * 1024;
         }
     }
 
