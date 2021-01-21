@@ -37,9 +37,14 @@ namespace MCloudServer.Controllers
             return new ErrorResult<T>(error, data);
         }
 
+        protected IQueryable<Comment> GetCommentsByTag(string tag)
+        {
+            return _context.Comments.Where(c => c.tag == tag);
+        }
+
         protected ActionResult RenderComments(string tag)
         {
-            var query = _context.Comments.Where(c => c.tag == tag);
+            var query = GetCommentsByTag(tag);
             query = Request.Query["reverse"] != "1"
                 ? query.OrderBy(c => c.id)
                 : query.OrderByDescending(c => c.id);

@@ -443,12 +443,14 @@ namespace MCloudServer.Controllers
             var track = await _context.Tracks.FindAsync(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
-            var plays = _context.Plays.Where(p => p.trackid == track.id);
+            var plays = _context.Plays.Where(p => p.trackid == trackid);
+            var comments = GetCommentsByTag("track/" + trackid);
 
             return new JsonResult(new
             {
                 playcount = await plays.CountAsync(),
-                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time
+                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time,
+                commentcount = await comments.CountAsync()
             });
         }
 
