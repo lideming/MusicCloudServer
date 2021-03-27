@@ -581,4 +581,9 @@ namespace MCloudServer
             };
         }
     }
+
+    public class TrackLocationWithProfile : TrackLocation
+    {
+        public string profile { get; set; }
+    }
 }

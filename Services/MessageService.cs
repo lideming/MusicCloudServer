@@ -71,6 +71,7 @@ namespace MCloudServer
             public List<string> ListeningEvents { get; } = new List<string>();
 
             public TrackLocation NowPlaying { get; set; }
+            public bool Paused { get; set; }
 
             public Client(MessageService service, WebSocket ws)
             {
@@ -172,6 +173,15 @@ namespace MCloudServer
                         queryId,
                         clients = GetClients().Select(c => c.GetInfo())
                     };
+                }
+                else if (cmd == "playingState")
+                {
+                    if (User == null) return new { resp = "fail", queryId, reason = "no_login" };
+                    NowPlaying = JsonSerializer.Deserialize<TrackLocationWithProfile>(
+                        json.GetProperty("nowPlaying").GetRawText()
+                    );
+                    Paused = json.GetProperty("paused").GetBoolean();
+                    return new { resp = "ok", queryId };
                 }
                 else
                 {

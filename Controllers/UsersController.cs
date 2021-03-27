@@ -139,13 +139,8 @@ namespace MCloudServer.Controllers
             return await GetUser(user);
         }
 
-        public class PostMePlayingArg : TrackLocation
-        {
-            public string profile { get; set; }
-        }
-
         [HttpPost("me/playing")]
-        public async Task<IActionResult> PostMePlaying(PostMePlayingArg playing)
+        public async Task<IActionResult> PostMePlaying(TrackLocationWithProfile playing)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
