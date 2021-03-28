@@ -318,6 +318,8 @@ namespace MCloudServer
         public Visibility visibility { get; set; }
         public string name { get; set; }
         public string artist { get; set; }
+        public string album { get; set; }
+        public string albumArtist { get; set; }
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
@@ -328,6 +330,10 @@ namespace MCloudServer
         public string lyrics { get; set; }
 
         public List<TrackFile> files { get; set; }
+
+        public int groupId { get; set; }
+        // tracks with same groupId are in the same group
+        // it's track id by default.
 
         public bool TryGetStoragePath(AppService app, out string path)
             => app.Config.TryResolveStoragePath(this.url, out path);
@@ -377,6 +383,18 @@ namespace MCloudServer
                 {
                     this.length = info.Duration;
                 }
+                this.album = info.Album;
+                this.albumArtist = info.AlbumArtist;
+            }
+        }
+
+        public void ReadAlbumFromFile(AppService app)
+        {
+            if (TryGetStoragePath(app, out var path))
+            {
+                var info = new ATL.Track(path);
+                this.album = info.Album;
+                this.albumArtist = info.AlbumArtist;
             }
         }
     }
@@ -426,6 +444,8 @@ namespace MCloudServer
         public int id { get; set; }
         public string name { get; set; }
         public string artist { get; set; }
+        public string album { get; set; }
+        public string albumArtist { get; set; }
         public string url { get; set; }
         public int size { get; set; }
         public int length { get; set; }
@@ -434,6 +454,8 @@ namespace MCloudServer
         public int? version { get; set; }
 
         public string lyrics { get; set; }
+
+        public int? groupId { get; set; }
 
         public List<TrackFileVM> files { get; set; }
 
@@ -444,12 +466,15 @@ namespace MCloudServer
                 id = t.id,
                 name = t.name,
                 artist = t.artist,
+                album = t.album,
+                albumArtist = t.albumArtist,
                 url = t.url,
                 size = t.size,
                 length = t.length,
                 owner = t.owner,
                 visibility = t.visibility,
                 lyrics = string.IsNullOrEmpty(t.lyrics) ? "" : withLyrics ? t.lyrics : null,
+                groupId = t.groupId,
                 version = t.version
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0)

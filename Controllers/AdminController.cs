@@ -79,6 +79,22 @@ namespace MCloudServer.Controllers
                         }
                     });
                     await _context.SaveChangesAsync();
+                } else if (arg == "tracks_album") {
+                    result = "ok";
+                    var listFail = new List<int>();
+                    await _context.Tracks
+                        .Where(t => t.album == "")
+                        .ForEachAsync((t) => {
+                        if (t.TryGetStoragePath(_app, out var path)) {
+                            try {
+                                t.ReadAlbumFromFile(_app);
+                            } catch (Exception) {
+                                listFail.Add(t.id);
+                            }
+                        }
+                    });
+                    await _context.SaveChangesAsync();
+                    sb.Append("except: ").Append(string.Join(" ", listFail));
                 }
             } catch (Exception ex) {
                 result = "error";

@@ -36,8 +36,11 @@ namespace MCloudServer.Controllers
             RETRY:
             track.name = vm.name;
             track.artist = vm.artist;
+            if (vm.album != null) track.album = vm.album;
+            if (vm.albumArtist != null) track.albumArtist = vm.albumArtist;
             if (vm.lyrics != null) track.lyrics = vm.lyrics;
             if (vm.visibility != null) track.visibility = vm.visibility.Value;
+            if (vm.groupId != null) track.groupId = vm.groupId.Value;
             track.version++;
 
             // _context.Entry(track).State = EntityState.Modified;
@@ -81,6 +84,24 @@ namespace MCloudServer.Controllers
             return new JsonResult(new
             {
                 lyrics = track.lyrics
+            });
+        }
+
+        [HttpGet("group/{id}")]
+        public async Task<ActionResult> GetGroup(int id)
+        {
+            var user = await GetLoginUser();
+            var uid = user?.id ?? 0;
+            //if (user == null) return GetErrorResult("no_login");
+
+            var result = _context.Tracks.Where(t =>
+                t.groupId == id &&
+                (t.owner == uid || t.visibility == Visibility.Public) // visible by user)
+            );
+
+            return new JsonResult(new
+            {
+                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false))
             });
         }
 

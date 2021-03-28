@@ -189,7 +189,7 @@ namespace MCloudServer
                             {
                                 item.size = (int)new FileInfo(path).Length;
                                 dbctx.Entry(item).State = EntityState.Modified;
-                                if (++count % 100 == 0) dbctx.SaveChanges();
+                                if (++count % 100 == 0) await dbctx.SaveChangesAsync();
                             }
                         }
                         catch (System.Exception ex)
@@ -197,9 +197,16 @@ namespace MCloudServer
                             logger.LogWarning(ex, "getting file length from track id {id}", item.id);
                         }
                     }
-                    dbctx.SaveChanges();
+                    await dbctx.SaveChangesAsync();
                     logger.LogInformation("saved file length for {count} files", count);
                     val = "2";
+                }
+                if (val == "2") {
+                    await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
+                    val = "3";
+                }
+                if (val != "3") {
+                    throw new Exception($"Unsupported appver \"{val}\"");
                 }
                 if (val != origVal)
                 {
