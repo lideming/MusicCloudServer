@@ -153,7 +153,10 @@ namespace MCloudServer.Controllers
             query = query.ToLower();
             var result = _context.Tracks.Where(t =>
                 (t.owner == uid || t.visibility == Visibility.Public) // visible by user
-                && (t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query))
+                && (
+                    t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query) ||
+                    t.album.ToLower().Contains(query) || t.albumArtist.ToLower().Contains(query)
+                )
             ).Skip(offset ?? 0).Take(200);
 
             return new JsonResult(new
