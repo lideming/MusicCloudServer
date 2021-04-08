@@ -85,6 +85,7 @@ namespace MCloudServer
 
             dbctx.Database.Migrate();
             AppMigrate(appService, dbctx, logger);
+            AppCheckFirstRun(appService, dbctx, logger);
 
             if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
             {
@@ -216,5 +217,20 @@ namespace MCloudServer
             }).Wait();
         }
 
+        private void AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger<Startup> logger)
+        {
+            if (dbctx.Users.Count() == 0) {
+                logger.LogInformation("No user is found, creating the default \"admin\" user.");
+                var user = new User{
+                    username = "admin",
+                    passwd = Utils.HashPassword("admin"),
+                    lists = new List<int>(),
+                    role = UserRole.SuperAdmin
+                };
+                dbctx.Users.Add(user);
+                dbctx.SaveChanges();
+                dbctx.Entry(user).State = EntityState.Detached;
+            }
+        }
     }
 }

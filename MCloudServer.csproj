@@ -21,6 +21,7 @@
     <None Update="passcode.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Content Remove="webapp/**" />
   </ItemGroup>
 
 </Project>
