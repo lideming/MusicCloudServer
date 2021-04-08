@@ -32,8 +32,8 @@ COPY --from=build-webapp-env /app/bundle.js /app/index.html /app/out/webapp/
 
 FROM mcr.microsoft.com/dotnet/aspnet:5.0-alpine
 WORKDIR /app
-RUN apk add ffmpeg fdk-aac && \
-    apk add fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
+RUN apk add --no-cache bash ffmpeg fdk-aac && \
+    apk add --no-cache fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
 COPY --from=build-env /app/out .
 ENV ASPNETCORE_ENVIRONMENT=docker
 ENTRYPOINT ["dotnet", "MCloudServer.dll"]
