@@ -1,4 +1,4 @@
-### Build web app
+#==> Build web app
 FROM node:alpine AS build-webapp-env
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN sed -i '/\Wworktree = .*/d' .git/config && \
     npm run build
 
 
-### Build backend
+#==> Build backend
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build-env
 WORKDIR /app
 
@@ -30,10 +30,18 @@ RUN dotnet publish -c Release -o out -r alpine-x64 --no-self-contained
 COPY --from=build-webapp-env /app/bundle.js /app/index.html /app/out/webapp/
 
 
+#==> Build the actual app container
 FROM mcr.microsoft.com/dotnet/aspnet:5.0-alpine
 WORKDIR /app
+
+# These are required for transcoding
 RUN apk add --no-cache bash ffmpeg fdk-aac && \
     apk add --no-cache fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
+
+# Copy the published app
 COPY --from=build-env /app/out .
+
+# Make the app use "appsettings.docker.json"
 ENV ASPNETCORE_ENVIRONMENT=docker
+
 ENTRYPOINT ["dotnet", "MCloudServer.dll"]
