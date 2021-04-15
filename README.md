@@ -1,6 +1,6 @@
 # MusicCloudServer
 
-The server of MusicCloud implemented in C# with ASP.NET Core.
+The server of [MusicCloud](https://github.com/lideming/MusicCloud) implemented in C# with ASP.NET Core.
 
 ## Run in Docker [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/yuuza/musiccloud)](https://hub.docker.com/r/yuuza/musiccloud)
 
