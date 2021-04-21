@@ -2,16 +2,42 @@
 
 The server of [MusicCloud](https://github.com/lideming/MusicCloud) implemented in C# with ASP.NET Core.
 
-## Run in Docker [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/yuuza/musiccloud)](https://hub.docker.com/r/yuuza/musiccloud)
+## Run in Docker [![Docker Image Size](https://img.shields.io/docker/image-size/yuuza/musiccloud/latest?label=yuuza%2Fmusiccloud%3Alatest&logo=docker)](https://hub.docker.com/r/yuuza/musiccloud)
+
+It works out of box (with transcoding).
+
+### Run simply
 
 ```shell
-docker run -d --name mc yuuza/musiccloud
+docker run -d yuuza/musiccloud
 ```
 
 ### With custom data location
 
 ```shell
 docker run -d --name mc -v /PATH_TO_DATA:/app/data yuuza/musiccloud
+```
+
+### With docker-compose
+
+Create file `docker-compose.yml` in a directory:
+
+```compose
+version: "2"
+
+services:
+    app:
+        image: yuuza/musiccloud
+        volumes:
+            - ./data:/app/data
+        ports:
+            - "80:80"
+```
+
+Start the app:
+
+```shell
+docker-compose up -d
 ```
 
 ## Build / Run Manually
