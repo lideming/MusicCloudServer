@@ -37,7 +37,7 @@ WORKDIR /app
 
 # These are required for transcoding
 RUN apk add --no-cache bash ffmpeg fdk-aac && \
-    apk add --no-cache fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
+    apk add --no-cache fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
 # Copy the published app
 COPY --from=build-env /app/out .
