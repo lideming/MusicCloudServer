@@ -1,3 +1,4 @@
+using MCloudServer.Controllers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
@@ -70,7 +71,7 @@ namespace MCloudServer
             public User User { get; private set; }
             public List<string> ListeningEvents { get; } = new List<string>();
 
-            public TrackLocation NowPlaying { get; set; }
+            public TrackLocationWithProfile NowPlaying { get; set; }
             public bool Paused { get; set; }
 
             public Client(MessageService service, WebSocket ws)
@@ -181,6 +182,15 @@ namespace MCloudServer
                         json.GetProperty("nowPlaying").GetRawText()
                     );
                     Paused = json.GetProperty("paused").GetBoolean();
+                    var justStarted = json.GetProperty("justStarted").GetBoolean();
+                    if (justStarted) {
+                        using (var scope = service.CreateScope()) {
+                            var dbctx = scope.ServiceProvider.GetService<DbCtx>();
+                            var user = await dbctx.Users.FindAsync(User.id);
+                            await UsersController.PostPlaying(dbctx, user, NowPlaying);
+                            this.User = user;
+                        }
+                    }
                     return new { resp = "ok", queryId };
                 }
                 else

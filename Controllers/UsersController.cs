@@ -145,12 +145,18 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
+            await PostPlaying(_context, user, playing);
+
+            return Ok();
+        }
+
+        public static async Task PostPlaying(DbCtx context, User user, TrackLocationWithProfile playing) {
             RETRY:
-            var track = await _context.Tracks.FindAsync(playing.trackid);
-            var list = playing.listid > 0 ? await _context.Lists.FindAsync(playing.listid) : null;
+            var track = await context.Tracks.FindAsync(playing.trackid);
+            var list = playing.listid > 0 ? await context.Lists.FindAsync(playing.listid) : null;
             if (track?.IsVisibleToUser(user) == true)
             {
-                _context.Plays.Add(new PlayRecord
+                context.Plays.Add(new PlayRecord
                 {
                     Track = track,
                     User = user,
@@ -161,13 +167,11 @@ namespace MCloudServer.Controllers
             }
 
             user.last_playing = playing.ToString();
-            // _context.Entry(user).State = EntityState.Modified;
+            // context.Entry(user).State = EntityState.Modified;
             user.version++;
 
 
-            if (await _context.FailedSavingChanges()) goto RETRY;
-
-            return Ok();
+            if (await context.FailedSavingChanges()) goto RETRY;
         }
 
         [HttpGet("me/playing")]
