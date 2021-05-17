@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -284,23 +284,32 @@ namespace MCloudServer.Controllers
         [HttpGet("{id}/stat")]
         public async Task<ActionResult> GetStat([FromRoute] string id)
         {
+            var login = await GetLoginUser();
             User user;
             if (id == "me") {
-                user = await GetLoginUser();
+                user = login;
                 if (user == null) return GetErrorResult("no_login");
             } else {
                 if (!int.TryParse(id, out var numid)) return GetErrorResult("wrong_id");
                 user = await _context.Users.FindAsync(numid);
-                var login = await GetLoginUser();
-                if (user == null || !(user.id == login.id || login.role == UserRole.SuperAdmin)) return GetErrorResult("user_not_found");
             }
 
             var plays = _context.Plays.Where(p => p.uid == user.id);
 
+            var lastplay = (await plays.OrderBy(p => p.time).Include(p => p.Track).LastOrDefaultAsync());
+
+            var lastPlayTime = lastplay?.time;
+            var lastPlayTrack = lastplay?.Track;
+            
+            if (lastplay?.Track != null && !lastPlayTrack.IsVisibleToUser(login)) {
+                lastPlayTrack = null;
+            }
+
             return new JsonResult(new
             {
-                playcount = await plays.CountAsync(),
-                lastplay = (await plays.OrderBy(p => p.time).LastOrDefaultAsync())?.time
+                playCount = await plays.CountAsync(),
+                lastPlayTime = lastPlayTime?.ToUniversalTime(),
+                lastPlayTrack = lastPlayTrack == null ? null : TrackVM.FromTrack(lastPlayTrack, _app)
             });
         }
 
