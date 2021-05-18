@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -20,14 +20,16 @@ namespace MCloudServer.Controllers
         }
 
         // GET: api/Users/5
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetUser(int id)
+        [HttpGet("{id_or_name}")]
+        public async Task<IActionResult> GetUser(string id_or_name)
         {
-            var login = await GetLoginUser();
-            if (login == null) return GetErrorResult("user_not_found");
-            if (login.role != UserRole.SuperAdmin && login.id != id) return GetErrorResult("not_found");
+            User user;
+            if (int.TryParse(id_or_name, out var id)) {
+                user = await _context.Users.FindAsync(id);
+            } else {
+                user = await _context.Users.Where(u => u.username == id_or_name).SingleOrDefaultAsync();
+            }
 
-            var user = await _context.Users.FindAsync(id);
             return await GetUser(user);
         }
 
@@ -102,8 +104,7 @@ namespace MCloudServer.Controllers
                 return new JsonResult(new
                 {
                     id = user.id,
-                    username = user.username,
-                    lists = lists
+                    username = user.username
                 });
             }
         }
