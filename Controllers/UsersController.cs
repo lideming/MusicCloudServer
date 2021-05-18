@@ -104,7 +104,8 @@ namespace MCloudServer.Controllers
                 return new JsonResult(new
                 {
                     id = user.id,
-                    username = user.username
+                    username = user.username,
+                    lists = lists.Where(l => l.visibility == Visibility.Public)
                 });
             }
         }
