@@ -126,7 +126,7 @@ namespace MCloudServer
                     proc.BeginErrorReadLine();
                 }
 
-                proc.WaitForExit();
+                await proc.WaitForExitAsync();
 
                 if (proc.ExitCode != 0)
                     throw new Exception("converter process exited with code " + proc.ExitCode);
