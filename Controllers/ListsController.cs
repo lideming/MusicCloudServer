@@ -64,7 +64,7 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutList(int id, ListPutVM vm)
+        public async Task<IActionResult> PutList(int id, TrackListPutVM vm)
         {
             if (id != vm.id)
             {
@@ -100,7 +100,7 @@ namespace MCloudServer.Controllers
 
         // POST: api/lists
         [HttpPost]
-        public async Task<ActionResult<List>> PostList(ListPutVM vm)
+        public async Task<ActionResult<TrackList>> PostList(TrackListPutVM vm)
         {
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
