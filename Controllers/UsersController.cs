@@ -226,7 +226,7 @@ namespace MCloudServer.Controllers
 
         // Create a list and add to lists of user
         [HttpPost("me/lists/new")]
-        public async Task<ActionResult<TrackListInfoVM>> PostMeList(ListPutVM vm)
+        public async Task<ActionResult<TrackListInfoVM>> PostMeList(TrackListPutVM vm)
         {
             using (var transa = await _context.Database.BeginTransactionAsync())
             {
