@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace MCloudServer
 {
@@ -16,9 +18,17 @@ namespace MCloudServer
         public string artist { get; set; }
         public string album { get; set; }
         public string albumArtist { get; set; }
+        
+        [Obsolete]
         public string url { get; set; }
+
+        [Obsolete]
         public int size { get; set; }
+
         public int length { get; set; }
+
+        public int? fileRecordId { get; set; }
+        public StoredFile fileRecord { get; set; }
 
         [ConcurrencyCheck]
         public int version { get; set; }
@@ -27,9 +37,12 @@ namespace MCloudServer
 
         public List<TrackFile> files { get; set; }
 
-        public int groupId { get; set; }
+        [InverseProperty("Track")]
+        public List<TrackFile> trackFiles { get; set; }
+
         // tracks with same groupId are in the same group
         // it's track id by default.
+        public int groupId { get; set; }
 
         public bool TryGetStoragePath(AppService app, out string path)
             => app.Config.TryResolveStoragePath(this.url, out path);
@@ -194,12 +207,25 @@ namespace MCloudServer
         }
     }
 
+    [Index("TrackID", IsUnique = false)]
+    [Table("trackFile")]
     public class TrackFile : ICloneable
     {
+        public int Id { get;set; }
+
         public string ConvName { get; set; }
+
         public string Format { get; set; }
         public int Bitrate { get; set; }
+
+        [Obsolete]
         public long Size { get; set; }
+
+        public int TrackID { get; set; }
+        public Track Track { get; set; }
+
+        public int FileID { get; set; }
+        public StoredFile File { get; set; }
 
         public TrackFile Clone() => base.MemberwiseClone() as TrackFile;
         object ICloneable.Clone() => this.Clone();
