@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 
 namespace MCloudServer
@@ -8,7 +9,11 @@ namespace MCloudServer
     {
         [Key]
         public int id { get; set; }
+
+        [ForeignKey("user")]
         public int owner { get; set; }
+        public User user { get; set; }
+
         public string name { get; set; }
 
         public List<int> trackids { get; set; }

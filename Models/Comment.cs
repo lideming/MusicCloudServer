@@ -1,12 +1,16 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MCloudServer
 {
     public class Comment
     {
         public int id { get; set; }
+
+        [ForeignKey("user")]
         public int uid { get; set; }
+        public User user { get; set; }
 
         [StringLength(20)]
         public string tag { get; set; }

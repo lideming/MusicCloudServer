@@ -13,7 +13,11 @@ namespace MCloudServer
     {
         [Key]
         public int id { get; set; }
+
+        [ForeignKey("user")]
         public int owner { get; set; } // the id of user that uploads this track
+        public User user { get; set; }
+
         public Visibility visibility { get; set; }
         public string name { get; set; }
         public string artist { get; set; }

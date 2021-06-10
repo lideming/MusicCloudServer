@@ -37,12 +37,18 @@ namespace MCloudServer
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<TrackList>().ToTable("lists");
+            modelBuilder.Entity<TrackList>().ToTable("lists")
+                .HasIndex(t => t.owner);
+
             modelBuilder.Entity<User>().ToTable("users")
                 .HasIndex(u => u.username).IsUnique();
-            modelBuilder.Entity<Track>().ToTable("tracks");
+
+            modelBuilder.Entity<Track>().ToTable("tracks")
+                .HasIndex(t => t.owner);
+
             modelBuilder.Entity<Comment>().ToTable("comments")
                 .HasIndex(c => c.tag);
+
             modelBuilder.Entity<ConfigItem>().ToTable("config");
             modelBuilder.Entity<LoginRecord>().ToTable("logins");
 
