@@ -233,7 +233,11 @@ namespace MCloudServer.Controllers
             {
                 name = arg.Filename,
                 artist = "Unknown",
-                owner = _context.User.id
+                owner = _context.User.id,
+                fileRecord = new StoredFile{
+                    path = "storage/" + filepath,
+                    size = size
+                }
             };
 
             var extNamePos = arg.Filename.LastIndexOf('.');
@@ -268,11 +272,7 @@ namespace MCloudServer.Controllers
                 });
             }
 
-            var file  = new StoredFile{
-                path = "storage/" + filepath,
-                size = size
-            };
-            AddTrackWithFile(track, file, extName);
+            AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
@@ -356,11 +356,10 @@ namespace MCloudServer.Controllers
 
             // Fill the track info, and complete.
             track.owner = user.id;
-            var file = new StoredFile{
+            track.fileRecord = new StoredFile {
                 path = "storage/tracks/" + filename,
                 size = fileLength
             };
-            AddTrackWithFile(track, file, extName);
             await Task.Run(() =>
             {
                 try
@@ -371,13 +370,14 @@ namespace MCloudServer.Controllers
                 {
                 }
             });
+            AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 
-        private void AddTrackWithFile(Track track, StoredFile file, string extName) {
-            track.fileRecord = file;
+        private void AddTrackWithFile(Track track, string extName) {
+            var file = track.fileRecord;
             _context.Files.Add(file);
             _context.TrackFiles.Add(new TrackFile {
                 Track = track,
