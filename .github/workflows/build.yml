@@ -11,4 +11,12 @@ jobs:
     - uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '5.0.x'
-    - run: dotnet build
+
+    - name: Build publish
+      run: dotnet publish -c Release
+
+    - name: Upload publish
+      uses: actions/upload-artifact@v2
+      with:
+        name: publish
+        path: bin/Release/net5.0/publish
