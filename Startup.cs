@@ -227,7 +227,7 @@ namespace MCloudServer
             //             track.trackFiles = new List<TrackFile>();
             //         track.trackFiles.Insert(0, new TrackFile{
             //             Track = track,
-            //             ConvName = null,
+            //             ConvName = "",
             //             Bitrate = track.length == 0 ? 0 : (int)(track.fileRecord.size * 8 / track.length / 1024),
             //             File = track.fileRecord,
             //             Format = track.fileRecord.path.Substring(track.fileRecord.path.LastIndexOf('.') + 1)

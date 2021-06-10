@@ -382,7 +382,7 @@ namespace MCloudServer.Controllers
             _context.TrackFiles.Add(new TrackFile {
                 Track = track,
                 Bitrate = track.length == 0 ? 0 : (int)(file.size * 8 / track.length / 1024),
-                ConvName = null,
+                ConvName = "",
                 File = file,
                 Format = extName ?? ""
             });

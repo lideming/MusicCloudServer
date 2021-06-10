@@ -180,12 +180,6 @@ namespace MCloudServer
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
                 var origBitrate = (int)(t.length > 0 ? t.size / t.length / 128 : 0);
                 vm.files = new List<TrackFileVM>();
-                vm.files.Add(new TrackFileVM {
-                    bitrate = origBitrate,
-                    format = t.url.Contains('.') ? t.url.Substring(t.url.IndexOf('.') + 1) : "",
-                    profile = "",
-                    size = vm.size
-                });
                 if (t.files != null) {
                     foreach (var item in t.files) {
                         vm.files.Add(new TrackFileVM(item));
@@ -219,7 +213,7 @@ namespace MCloudServer
 
         public TrackFileVM(TrackFile f)
         {
-            profile = f.ConvName;
+            profile = f.ConvName ?? "";
             format = f.Format;
             bitrate = f.Bitrate;
             size = f.Size;
