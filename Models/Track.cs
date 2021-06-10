@@ -19,14 +19,6 @@ namespace MCloudServer
         public string artist { get; set; }
         public string album { get; set; }
         public string albumArtist { get; set; }
-        
-        [Obsolete]
-        [NotMapped]
-        public string url => fileRecord.path;
-
-        [Obsolete]
-        [NotMapped]
-        public long size => fileRecord.size;
 
         public int length { get; set; }
 
@@ -44,6 +36,26 @@ namespace MCloudServer
         // tracks with same groupId are in the same group
         // it's track id by default.
         public int groupId { get; set; }
+
+        [NotMapped]
+        public string url {
+            get {
+                if (fileRecord == null) {
+                    throw new Exception("Cannot get the url because fileRecord is null");
+                }
+                return fileRecord.path;
+            }
+        }
+
+        [NotMapped]
+        public long size {
+            get {
+                if (fileRecord == null) {
+                    throw new Exception("Cannot get the size because fileRecord is null");
+                }
+                return fileRecord.size;
+            }
+        }
 
         public bool TryGetStoragePath(AppService app, out string path)
             => app.Config.TryResolveStoragePath(this.url, out path);
@@ -65,13 +77,13 @@ namespace MCloudServer
             {
                 foreach (var item in files)
                 {
-                    if (app.Config.TryResolveStoragePath(ConvUrl(item.ConvName), out var fpath))
+                    if (app.Config.TryResolveStoragePath(item.File.path, out var fpath))
                     {
                         File.Delete(fpath);
                     }
                     if (app.StorageService.Mode != StorageMode.Direct)
                     {
-                        app.StorageService.DeleteFile(app.Config.GetStoragePath(ConvUrl(item.ConvName)));
+                        app.StorageService.DeleteFile(app.Config.GetStoragePath(item.File.path));
                     }
                 }
             }
