@@ -174,71 +174,74 @@ namespace MCloudServer
             dbctx.Database.BeginTransaction();
             var val = await dbctx.GetConfig("appver");
             var origVal = val;
-            if (val == null)
-            {
-                val = "1";
-            }
-            if (val == "1")
-            {
-                int count = 0;
-                foreach (var item in dbctx.Tracks.AsNoTracking())
-                {
-                    try
-                    {
-                        if (item.TryGetStoragePath(appService, out var path))
-                        {
-                            item.size = (int)new FileInfo(path).Length;
-                            dbctx.Entry(item).State = EntityState.Modified;
-                            if (++count % 100 == 0) await dbctx.SaveChangesAsync();
-                        }
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogWarning(ex, "getting file length from track id {id}", item.id);
-                    }
-                }
-                await dbctx.SaveChangesAsync();
-                logger.LogInformation("saved file length for {count} files", count);
-                val = "2";
-            }
-            if (val == "2") {
-                await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
-                val = "3";
-            }
-            if (val == "3") {
-                int count = 0;
-                foreach (var track in dbctx.Tracks.Include(t => t.fileRecord))
-                {
-                    track.fileRecord = new StoredFile {
-                        path = track.url,
-                        size = track.size
-                    };
-                    if (track.files != null)
-                        track.trackFiles = track.files.Select(x => {
-                            var cloned = x.Clone();
-                            cloned.Track = track;
-                            cloned.File = new StoredFile {
-                                path = track.url + "." + cloned.ConvName,
-                                size = cloned.Size
-                            };
-                            return cloned;
-                        }).ToList();
-                    else
-                        track.trackFiles = new List<TrackFile>();
-                    track.trackFiles.Insert(0, new TrackFile{
-                        Track = track,
-                        ConvName = null,
-                        Bitrate = track.length == 0 ? 0 : (int)(track.fileRecord.size * 8 / track.length / 1024),
-                        File = track.fileRecord,
-                        Format = track.fileRecord.path.Substring(track.fileRecord.path.LastIndexOf('.') + 1)
-                    });
-                    dbctx.TrackFiles.AddRange(track.trackFiles);
-                    dbctx.Files.AddRange(track.trackFiles.Select(t => t.File));
-                    dbctx.Entry(track).State = EntityState.Modified;
-                    if (++count % 100 == 0) await dbctx.SaveChangesAsync();
-                }
-                await dbctx.SaveChangesAsync();
-                logger.LogInformation("updated StoredFile for {count} tracks", count);
+            // if (val == null)
+            // {
+            //     val = "1";
+            // }
+            // if (val == "1")
+            // {
+            //     int count = 0;
+            //     foreach (var item in dbctx.Tracks.AsNoTracking())
+            //     {
+            //         try
+            //         {
+            //             if (item.TryGetStoragePath(appService, out var path))
+            //             {
+            //                 item.size = (int)new FileInfo(path).Length;
+            //                 dbctx.Entry(item).State = EntityState.Modified;
+            //                 if (++count % 100 == 0) await dbctx.SaveChangesAsync();
+            //             }
+            //         }
+            //         catch (System.Exception ex)
+            //         {
+            //             logger.LogWarning(ex, "getting file length from track id {id}", item.id);
+            //         }
+            //     }
+            //     await dbctx.SaveChangesAsync();
+            //     logger.LogInformation("saved file length for {count} files", count);
+            //     val = "2";
+            // }
+            // if (val == "2") {
+            //     await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
+            //     val = "3";
+            // }
+            // if (val == "3") {
+            //     int count = 0;
+            //     foreach (var track in dbctx.Tracks.Include(t => t.fileRecord))
+            //     {
+            //         track.fileRecord = new StoredFile {
+            //             path = track.url,
+            //             size = track.size
+            //         };
+            //         if (track.files != null)
+            //             track.trackFiles = track.files.Select(x => {
+            //                 var cloned = x.Clone();
+            //                 cloned.Track = track;
+            //                 cloned.File = new StoredFile {
+            //                     path = track.url + "." + cloned.ConvName,
+            //                     size = cloned.Size
+            //                 };
+            //                 return cloned;
+            //             }).ToList();
+            //         else
+            //             track.trackFiles = new List<TrackFile>();
+            //         track.trackFiles.Insert(0, new TrackFile{
+            //             Track = track,
+            //             ConvName = null,
+            //             Bitrate = track.length == 0 ? 0 : (int)(track.fileRecord.size * 8 / track.length / 1024),
+            //             File = track.fileRecord,
+            //             Format = track.fileRecord.path.Substring(track.fileRecord.path.LastIndexOf('.') + 1)
+            //         });
+            //         dbctx.TrackFiles.AddRange(track.trackFiles);
+            //         dbctx.Files.AddRange(track.trackFiles.Select(t => t.File));
+            //         dbctx.Entry(track).State = EntityState.Modified;
+            //         if (++count % 100 == 0) await dbctx.SaveChangesAsync();
+            //     }
+            //     await dbctx.SaveChangesAsync();
+            //     logger.LogInformation("updated StoredFile for {count} tracks", count);
+            //     val = "4";
+            // }
+            if (val == null) {
                 val = "4";
             }
             if (val != "4") {

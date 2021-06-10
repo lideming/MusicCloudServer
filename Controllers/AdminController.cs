@@ -30,31 +30,32 @@ namespace MCloudServer.Controllers
             var sb = new StringBuilder();
 
             try {
-                if (arg == "tracks_migration") {
-                    result = "ok";
-                    var listOk = new List<int>();
-                    var listFail = new List<int>();
-                    await _context.Tracks
-                        .Where(t => t.artist == "Unknown" || !t.url.Contains(".") || t.length == 0)
-                        .ForEachAsync((t) => {
-                        if (t.TryGetStoragePath(_app, out var path)) {
-                            try {
-                                if (!t.url.Contains(".")) {
-                                    var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
-                                    System.IO.File.Move(path, path + guessedExt);
-                                    t.url += guessedExt;
-                                } 
-                                t.ReadTrackInfoFromFile(_app);
-                                listOk.Add(t.id);
-                            } catch (Exception) {
-                                listFail.Add(t.id);
-                            }
-                        }
-                    });
-                    await _context.SaveChangesAsync();
-                    sb.Append("ok: ").Append(string.Join(" ", listOk)).AppendLine();
-                    sb.Append("fail: ").Append(string.Join(" ", listFail));
-                } else if (arg == "sql") {
+                // if (arg == "tracks_migration") {
+                //     result = "ok";
+                //     var listOk = new List<int>();
+                //     var listFail = new List<int>();
+                //     await _context.Tracks
+                //         .Where(t => t.artist == "Unknown" || !t.url.Contains(".") || t.length == 0)
+                //         .ForEachAsync((t) => {
+                //         if (t.TryGetStoragePath(_app, out var path)) {
+                //             try {
+                //                 if (!t.url.Contains(".")) {
+                //                     var guessedExt = t.artist == "Unknown" ? ".m4a" : ".mp3";
+                //                     System.IO.File.Move(path, path + guessedExt);
+                //                     t.url += guessedExt;
+                //                 } 
+                //                 t.ReadTrackInfoFromFile(_app);
+                //                 listOk.Add(t.id);
+                //             } catch (Exception) {
+                //                 listFail.Add(t.id);
+                //             }
+                //         }
+                //     });
+                //     await _context.SaveChangesAsync();
+                //     sb.Append("ok: ").Append(string.Join(" ", listOk)).AppendLine();
+                //     sb.Append("fail: ").Append(string.Join(" ", listFail));
+                // } else 
+                if (arg == "sql") {
                     result = "ok";
                     var sql = await new StreamReader(this.HttpContext.Request.Body, Encoding.UTF8).ReadToEndAsync();
                     sb.Append("affected: ").Append(await _context.Database.ExecuteSqlRawAsync(sql));

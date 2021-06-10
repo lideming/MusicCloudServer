@@ -190,7 +190,7 @@ namespace MCloudServer.Controllers
             Track track = null;
             if (location.trackid != 0)
             {
-                track = await _context.Tracks.FindAsync(location.trackid);
+                track = await _context.GetTrack(location.trackid);
                 if (track?.IsVisibleToUser(user) != true)
                     track = null;
             }
@@ -277,7 +277,7 @@ namespace MCloudServer.Controllers
 
             return new JsonResult(new
             {
-                tracks = await _context.Tracks.Where(t => t.owner == user.id)
+                tracks = await Track.Includes(_context.Tracks).Where(t => t.owner == user.id)
                     .Select(x => TrackVM.FromTrack(x, _app, false))
                     .ToListAsync()
             });

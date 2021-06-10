@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,8 +61,6 @@ namespace MCloudServer
                 ApplyListConversion(modelBuilder.Entity<User>().Property(u => u.lists));
                 ApplyListConversion(modelBuilder.Entity<TrackList>().Property(l => l.trackids));
             }
-
-            ApplyListConversion(modelBuilder.Entity<Track>().Property(t => t.files));
         }
 
         /// <summary>
@@ -116,10 +115,15 @@ namespace MCloudServer
             return GetTracks(trackids).Select(x => TrackVM.FromTrack(x, App, false));
         }
 
+        public Task<Track> GetTrack(int id)
+        {
+            return Track.Includes(Tracks.Where(t => t.id == id)).SingleOrDefaultAsync();
+        }
+
         public IEnumerable<Track> GetTracks(IEnumerable<int> trackids)
         {
             var ids = trackids.Distinct().ToList();
-            var tracks = Tracks.Where(x => ids.Contains(x.id)).ToList();
+            var tracks = Track.Includes(Tracks.Where(x => ids.Contains(x.id))).ToList();
             return trackids.Select(i => tracks.FirstOrDefault(x => x.id == i))
                 .Where(x => x != null);
         }

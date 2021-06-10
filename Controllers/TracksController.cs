@@ -66,7 +66,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
 
-            var track = _context.Tracks.Find(id);
+            var track = await _context.GetTrack(id);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             return new JsonResult(TrackVM.FromTrack(track, _app, true));
@@ -78,7 +78,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
 
-            var track = _context.Tracks.Find(id);
+            var track = await _context.GetTrack(id);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             return new JsonResult(new
@@ -116,7 +116,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            var track = _context.Tracks.Find(id);
+            var track = await _context.GetTrack(id);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
 
             var profile = arg.profile;
@@ -134,6 +134,8 @@ namespace MCloudServer.Controllers
                 if (!r.AlreadyExisted)
                 {
                 RETRY:
+                    _context.Files.Add(file.File);
+                    _context.TrackFiles.Add(file);
                     track.files.Add(file);
                     if (await _context.FailedSavingChanges()) goto RETRY;
                 }
@@ -151,7 +153,7 @@ namespace MCloudServer.Controllers
 
             var uid = user?.id ?? 0;
             query = query.ToLower();
-            var result = _context.Tracks.Where(t =>
+            var result = Track.Includes(_context.Tracks).Where(t =>
                 (t.owner == uid || t.visibility == Visibility.Public) // visible by user
                 && (
                     t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query) ||
@@ -231,9 +233,7 @@ namespace MCloudServer.Controllers
             {
                 name = arg.Filename,
                 artist = "Unknown",
-                owner = _context.User.id,
-                url = "storage/" + filepath,
-                size = size > int.MaxValue ? int.MaxValue : (int)size
+                owner = _context.User.id
             };
 
             var extNamePos = arg.Filename.LastIndexOf('.');
@@ -268,7 +268,11 @@ namespace MCloudServer.Controllers
                 });
             }
 
-            _context.Tracks.Add(track);
+            var file  = new StoredFile{
+                path = "storage/" + filepath,
+                size = size
+            };
+            AddTrackWithFile(track, file, extName);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
@@ -351,9 +355,12 @@ namespace MCloudServer.Controllers
             System.IO.File.Move(tmpfile, Path.Combine(tracksdir, filename));
 
             // Fill the track info, and complete.
-            track.size = fileLength;
-            track.url = "storage/tracks/" + filename;
             track.owner = user.id;
+            var file = new StoredFile{
+                path = "storage/tracks/" + filename,
+                size = fileLength
+            };
+            AddTrackWithFile(track, file, extName);
             await Task.Run(() =>
             {
                 try
@@ -364,10 +371,22 @@ namespace MCloudServer.Controllers
                 {
                 }
             });
-            _context.Tracks.Add(track);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
+        }
+
+        private void AddTrackWithFile(Track track, StoredFile file, string extName) {
+            track.fileRecord = file;
+            _context.Files.Add(file);
+            _context.TrackFiles.Add(new TrackFile {
+                Track = track,
+                Bitrate = track.length == 0 ? 0 : (int)(file.size * 8 / track.length / 1024),
+                ConvName = null,
+                File = file,
+                Format = extName ?? ""
+            });
+            _context.Tracks.Add(track);
         }
 
         private async Task<int> ReadBlockLength(Stream stream)
@@ -408,10 +427,14 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            var track = await _context.Tracks.FindAsync(trackid);
+            var track = await _context.GetTrack(trackid);
             if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
             if (track?.IsWritableByUser(user) != true) return GetErrorResult("permission_denied");
 
+            track.DeleteFile(_app);
+
+            _context.Files.RemoveRange(track.files.Select(x => x.File));
+            _context.TrackFiles.RemoveRange(track.files);
             _context.Tracks.Remove(track);
             try
             {
@@ -422,7 +445,6 @@ namespace MCloudServer.Controllers
                 return GetErrorResult("track_not_found");
             }
 
-            track.DeleteFile(_app);
 
             return NoContent();
         }

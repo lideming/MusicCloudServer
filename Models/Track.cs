@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace MCloudServer
 {
@@ -20,10 +21,12 @@ namespace MCloudServer
         public string albumArtist { get; set; }
         
         [Obsolete]
-        public string url { get; set; }
+        [NotMapped]
+        public string url => fileRecord.path;
 
         [Obsolete]
-        public int size { get; set; }
+        [NotMapped]
+        public long size => fileRecord.size;
 
         public int length { get; set; }
 
@@ -35,10 +38,8 @@ namespace MCloudServer
 
         public string lyrics { get; set; }
 
-        public List<TrackFile> files { get; set; }
-
         [InverseProperty("Track")]
-        public List<TrackFile> trackFiles { get; set; }
+        public List<TrackFile> files { get; set; }
 
         // tracks with same groupId are in the same group
         // it's track id by default.
@@ -106,6 +107,12 @@ namespace MCloudServer
                 this.albumArtist = info.AlbumArtist;
             }
         }
+
+        
+
+        public static IIncludableQueryable<Track, StoredFile> Includes(IQueryable<Track> tracks) {
+            return tracks.Include(t => t.fileRecord).Include(t => t.files).ThenInclude(f => f.File);
+        }
     }
 
     public class PlayRecord
@@ -129,7 +136,7 @@ namespace MCloudServer
         public string album { get; set; }
         public string albumArtist { get; set; }
         public string url { get; set; }
-        public int size { get; set; }
+        public long size { get; set; }
         public int length { get; set; }
         public int owner { get; set; }
         public Visibility? visibility { get; set; }
@@ -159,7 +166,7 @@ namespace MCloudServer
                 version = t.version
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
-                var origBitrate = t.length > 0 ? t.size / t.length / 128 : 0;
+                var origBitrate = (int)(t.length > 0 ? t.size / t.length / 128 : 0);
                 vm.files = new List<TrackFileVM>();
                 vm.files.Add(new TrackFileVM {
                     bitrate = origBitrate,
@@ -219,7 +226,8 @@ namespace MCloudServer
         public int Bitrate { get; set; }
 
         [Obsolete]
-        public long Size { get; set; }
+        [NotMapped]
+        public long Size => File.size;
 
         public int TrackID { get; set; }
         public Track Track { get; set; }

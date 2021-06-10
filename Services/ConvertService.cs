@@ -136,7 +136,10 @@ namespace MCloudServer
                     Bitrate = Conv.Bitrate,
                     ConvName = Conv.Name,
                     Format = Conv.Format,
-                    Size = new FileInfo(outputPath).Length
+                    File = new StoredFile{
+                        path = outputUrl,
+                        size = new FileInfo(outputPath).Length
+                    }
                 };
                 TrackFile = trackFile;
 
