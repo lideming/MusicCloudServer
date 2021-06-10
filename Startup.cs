@@ -84,7 +84,7 @@ namespace MCloudServer
             app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             dbctx.Database.Migrate();
-            AppMigrate(appService, dbctx, logger);
+            AppMigrate(appService, dbctx, logger).Wait();
             AppCheckFirstRun(appService, dbctx, logger);
 
             if (string.IsNullOrEmpty(MyConfigration.Passcode) == false)
@@ -169,52 +169,87 @@ namespace MCloudServer
             });
         }
 
-        private void AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
+        private async Task AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
         {
-            dbctx.GetConfig("appver").ContinueWith(async (task) =>
+            dbctx.Database.BeginTransaction();
+            var val = await dbctx.GetConfig("appver");
+            var origVal = val;
+            if (val == null)
             {
-                var val = await task;
-                var origVal = val;
-                if (val == null)
+                val = "1";
+            }
+            if (val == "1")
+            {
+                int count = 0;
+                foreach (var item in dbctx.Tracks.AsNoTracking())
                 {
-                    val = "1";
-                }
-                if (val == "1")
-                {
-                    int count = 0;
-                    foreach (var item in dbctx.Tracks.AsNoTracking())
+                    try
                     {
-                        try
+                        if (item.TryGetStoragePath(appService, out var path))
                         {
-                            if (item.TryGetStoragePath(appService, out var path))
-                            {
-                                item.size = (int)new FileInfo(path).Length;
-                                dbctx.Entry(item).State = EntityState.Modified;
-                                if (++count % 100 == 0) await dbctx.SaveChangesAsync();
-                            }
-                        }
-                        catch (System.Exception ex)
-                        {
-                            logger.LogWarning(ex, "getting file length from track id {id}", item.id);
+                            item.size = (int)new FileInfo(path).Length;
+                            dbctx.Entry(item).State = EntityState.Modified;
+                            if (++count % 100 == 0) await dbctx.SaveChangesAsync();
                         }
                     }
-                    await dbctx.SaveChangesAsync();
-                    logger.LogInformation("saved file length for {count} files", count);
-                    val = "2";
+                    catch (System.Exception ex)
+                    {
+                        logger.LogWarning(ex, "getting file length from track id {id}", item.id);
+                    }
                 }
-                if (val == "2") {
-                    await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
-                    val = "3";
-                }
-                if (val != "3") {
-                    throw new Exception($"Unsupported appver \"{val}\"");
-                }
-                if (val != origVal)
+                await dbctx.SaveChangesAsync();
+                logger.LogInformation("saved file length for {count} files", count);
+                val = "2";
+            }
+            if (val == "2") {
+                await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
+                val = "3";
+            }
+            if (val == "3") {
+                int count = 0;
+                foreach (var track in dbctx.Tracks.Include(t => t.fileRecord))
                 {
-                    logger.LogInformation("appver changed from {orig} to {val}", origVal, val);
-                    await dbctx.SetConfig("appver", val);
+                    track.fileRecord = new StoredFile {
+                        path = track.url,
+                        size = track.size
+                    };
+                    if (track.files != null)
+                        track.trackFiles = track.files.Select(x => {
+                            var cloned = x.Clone();
+                            cloned.Track = track;
+                            cloned.File = new StoredFile {
+                                path = track.url + "." + cloned.ConvName,
+                                size = cloned.Size
+                            };
+                            return cloned;
+                        }).ToList();
+                    else
+                        track.trackFiles = new List<TrackFile>();
+                    track.trackFiles.Insert(0, new TrackFile{
+                        Track = track,
+                        ConvName = null,
+                        Bitrate = track.length == 0 ? 0 : (int)(track.fileRecord.size * 8 / track.length / 1024),
+                        File = track.fileRecord,
+                        Format = track.fileRecord.path.Substring(track.fileRecord.path.LastIndexOf('.') + 1)
+                    });
+                    dbctx.TrackFiles.AddRange(track.trackFiles);
+                    dbctx.Files.AddRange(track.trackFiles.Select(t => t.File));
+                    dbctx.Entry(track).State = EntityState.Modified;
+                    if (++count % 100 == 0) await dbctx.SaveChangesAsync();
                 }
-            }).Wait();
+                await dbctx.SaveChangesAsync();
+                logger.LogInformation("updated StoredFile for {count} tracks", count);
+                val = "4";
+            }
+            if (val != "4") {
+                throw new Exception($"Unsupported appver \"{val}\"");
+            }
+            if (val != origVal)
+            {
+                logger.LogInformation("appver changed from {orig} to {val}", origVal, val);
+                await dbctx.SetConfig("appver", val);
+            }
+            dbctx.Database.CommitTransaction();
         }
 
         private void AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger<Startup> logger)

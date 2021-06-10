@@ -27,6 +27,8 @@ namespace MCloudServer
         public DbSet<Comment> Comments { get; set; }
         public DbSet<LoginRecord> Logins { get; set; }
         public DbSet<PlayRecord> Plays { get; set; }
+        public DbSet<StoredFile> Files { get; set; }
+        public DbSet<TrackFile> TrackFiles { get; set; }
 
         public UserService UserService { get; set; }
         public bool IsLogged => UserService.IsLogged;
