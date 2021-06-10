@@ -235,7 +235,6 @@ namespace MCloudServer
         public string Format { get; set; }
         public int Bitrate { get; set; }
 
-        [Obsolete]
         [NotMapped]
         public long Size => File.size;
 

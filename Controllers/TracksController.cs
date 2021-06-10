@@ -508,12 +508,12 @@ namespace MCloudServer.Controllers
 
             return new JsonResult(new
             {
-                recentplays = plays.Select(p => new
+                recentplays = await plays.Select(p => new
                 {
                     uid = p.uid,
                     track = TrackVM.FromTrack(p.Track, _app, false),
                     time = p.time
-                })
+                }).ToListAsync()
             });
         }
 
