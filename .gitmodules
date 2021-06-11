@@ -1,3 +1,4 @@
 [submodule "webapp"]
 	path = webapp
-	url = https://github.com/lideming/MusicCloud.git
+	url = ../MusicCloud.git
+	branch = master
