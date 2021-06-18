@@ -23,12 +23,7 @@ namespace MCloudServer.Controllers
         [HttpGet("{id_or_name}")]
         public async Task<IActionResult> GetUser(string id_or_name)
         {
-            User user;
-            if (int.TryParse(id_or_name, out var id)) {
-                user = await _context.Users.FindAsync(id);
-            } else {
-                user = await _context.Users.Where(u => u.username == id_or_name).SingleOrDefaultAsync();
-            }
+            User user = await _context.GetUserFromIdOrName(id_or_name);
 
             return await GetUser(user);
         }
@@ -287,18 +282,15 @@ namespace MCloudServer.Controllers
         public async Task<ActionResult> GetStat([FromRoute] string id)
         {
             var login = await GetLoginUser();
-            User user;
-            if (id == "me") {
-                user = login;
-                if (user == null) return GetErrorResult("no_login");
-            } else {
-                if (!int.TryParse(id, out var numid)) return GetErrorResult("wrong_id");
-                user = await _context.Users.FindAsync(numid);
-            }
+            User user = await _context.GetUserFromIdOrName(id);
+            if (user == null) return GetErrorResult("user_not_found");
 
             var plays = _context.Plays.Where(p => p.uid == user.id);
 
-            var lastplay = (await plays.OrderBy(p => p.time).Include(p => p.Track).LastOrDefaultAsync());
+            var lastplay = await plays.OrderBy(p => p.time)
+                .Include(p => p.Track.fileRecord)
+                .Include(p => p.Track.files).ThenInclude(f => f.File)
+                .LastOrDefaultAsync();
 
             var lastPlayTime = lastplay?.time;
             var lastPlayTrack = lastplay?.Track;

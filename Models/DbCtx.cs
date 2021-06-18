@@ -116,6 +116,18 @@ namespace MCloudServer
             return Task.FromResult(User);
         }
 
+        public ValueTask<User> GetUserFromIdOrName(string id) {
+            if (id == "me") {
+                return ValueTask.FromResult(User);
+            } else {
+                if (int.TryParse(id, out var numid)) {
+                    return Users.FindAsync(numid);
+                } else {
+                    return new ValueTask<User>(FindUser(id));
+                }
+            }
+        }
+
         public IEnumerable<TrackVM> GetTrackVMs(IEnumerable<int> trackids)
         {
             return GetTracks(trackids).Select(x => TrackVM.FromTrack(x, App, false));
