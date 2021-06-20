@@ -28,7 +28,7 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             if (user == null) return GetErrorResult("no_login");
 
-            var track = _context.Tracks.Find(id);
+            var track = await _context.GetTrack(id);
             if (track?.IsWritableByUser(user) != true) return GetErrorResult("track_not_found");
 
             if (vm.version != null && vm.version.Value != track.version) goto TRACK_CHANGED;
