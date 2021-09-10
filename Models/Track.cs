@@ -29,6 +29,9 @@ namespace MCloudServer
         public int? fileRecordId { get; set; }
         public StoredFile fileRecord { get; set; }
 
+        public int? pictureFileId {get;set; }
+        public StoredFile pictureFile { get; set; }
+
         [ConcurrencyCheck]
         public int version { get; set; }
 
@@ -59,6 +62,22 @@ namespace MCloudServer
                 }
                 return fileRecord.size;
             }
+        }
+
+        [NotMapped]
+        private ATL.Track _cachedParsedFile;
+
+        public ATL.Track GetCachedParsedFile(AppService app) {
+            if (_cachedParsedFile == null && TryGetStoragePath(app, out var path))
+            {
+                _cachedParsedFile = new ATL.Track(path);
+            }
+            return _cachedParsedFile;
+        }
+
+        public bool GetCachedFileInfo(AppService app, out ATL.Track track) {
+            track = GetCachedParsedFile(app);
+            return track != null;
         }
 
         public bool TryGetStoragePath(AppService app, out string path)
@@ -95,9 +114,8 @@ namespace MCloudServer
 
         public void ReadTrackInfoFromFile(AppService app)
         {
-            if (TryGetStoragePath(app, out var path))
+            if (GetCachedFileInfo(app, out var info))
             {
-                var info = new ATL.Track(path);
                 var slash = url.LastIndexOf('/');
                 var dot = url.LastIndexOf('.');
                 this.artist = info.Artist;
@@ -116,18 +134,38 @@ namespace MCloudServer
 
         public void ReadAlbumFromFile(AppService app)
         {
-            if (TryGetStoragePath(app, out var path))
+            if (GetCachedFileInfo(app, out var info))
             {
-                var info = new ATL.Track(path);
                 this.album = info.Album;
                 this.albumArtist = info.AlbumArtist;
             }
         }
 
-        
+        public void ReadPicutreFromTrackFile(AppService app)
+        {
+            if (GetCachedFileInfo(app, out var info))
+            {
+                Console.WriteLine("==================");
+                Console.WriteLine(info.EmbeddedPictures.Count);
+                if (info.EmbeddedPictures.Count > 0) {
+                    var picData = info.EmbeddedPictures[0].PictureData;
+                    var path = "storage/pic/" + Path.GetFileNameWithoutExtension(this.url) + ".jpg";
+                    var fsPath = app.Config.ResolveStoragePath(path);
+                    Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
+                    File.WriteAllBytes(fsPath, picData);
+                    this.pictureFile = new StoredFile {
+                        path = path,
+                        size = picData.Length
+                    };
+                }
+            }
+        }
 
         public static IIncludableQueryable<Track, StoredFile> Includes(IQueryable<Track> tracks) {
-            return tracks.Include(t => t.fileRecord).Include(t => t.files).ThenInclude(f => f.File);
+            return tracks
+                .Include(t => t.pictureFile)
+                .Include(t => t.fileRecord)
+                .Include(t => t.files).ThenInclude(f => f.File);
         }
     }
 
@@ -152,6 +190,7 @@ namespace MCloudServer
         public string album { get; set; }
         public string albumArtist { get; set; }
         public string url { get; set; }
+        public string picurl { get; set; }
         public long size { get; set; }
         public int length { get; set; }
         public int owner { get; set; }
@@ -173,6 +212,7 @@ namespace MCloudServer
                 album = t.album,
                 albumArtist = t.albumArtist,
                 url = t.url,
+                picurl = t.pictureFile?.path,
                 size = t.size,
                 length = t.length,
                 owner = t.owner,

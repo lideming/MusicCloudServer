@@ -9,6 +9,7 @@ using MCloudServer;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace MCloudServer.Controllers
 {
@@ -16,9 +17,12 @@ namespace MCloudServer.Controllers
     [ApiController]
     public class TracksController : MyControllerBase
     {
-        public TracksController(DbCtx context) : base(context)
+        public TracksController(DbCtx context, ILogger<TracksController> logger) : base(context)
         {
+            this.logger = logger;
         }
+
+        private readonly ILogger<TracksController> logger;
 
         [HttpPut("{id}")]
         public async Task<ActionResult> PutTrack(int id, TrackVM vm)
@@ -260,16 +264,7 @@ namespace MCloudServer.Controllers
                     return GetErrorResult("wrong_size");
                 }
 
-                await Task.Run(() =>
-                {
-                    try
-                    {
-                        track.ReadTrackInfoFromFile(_app);
-                    }
-                    catch
-                    {
-                    }
-                });
+                await ReadTrackFileInfo(track);
             }
 
             AddTrackWithFile(track, extName);
@@ -360,20 +355,26 @@ namespace MCloudServer.Controllers
                 path = "storage/tracks/" + filename,
                 size = fileLength
             };
-            await Task.Run(() =>
-            {
-                try
-                {
-                    track.ReadTrackInfoFromFile(_app);
-                }
-                catch
-                {
-                }
-            });
+            await ReadTrackFileInfo(track);
             AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
+        }
+
+        private Task ReadTrackFileInfo(Track track) {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    track.ReadTrackInfoFromFile(_app);
+                    track.ReadPicutreFromTrackFile(_app);
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e, "Error reading track info from {path}", track.url);
+                }
+            });
         }
 
         private void AddTrackWithFile(Track track, string extName) {
