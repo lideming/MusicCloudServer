@@ -84,6 +84,7 @@ namespace MCloudServer.Controllers
                     result = "ok";
                     var listFail = new List<int>();
                     await _context.Tracks
+                        .Include(t => t.fileRecord)
                         .Where(t => t.album == "")
                         .ForEachAsync((t) => {
                         if (t.TryGetStoragePath(_app, out var path)) {
@@ -100,6 +101,7 @@ namespace MCloudServer.Controllers
                     result = "ok";
                     var listFail = new List<int>();
                     await _context.Tracks
+                        .Include(t => t.fileRecord)
                         .Where(t => t.pictureFileId == null)
                         .ForEachAsync((t) => {
                         if (t.TryGetStoragePath(_app, out var path)) {
