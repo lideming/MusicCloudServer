@@ -20,6 +20,10 @@ namespace MCloudServer
 
         public Visibility visibility { get; set; }
 
+        [ForeignKey("pic")]
+        public int? picId { get; set; }
+        public StoredFile pic { get; set; }
+
         [ConcurrencyCheck]
         public int version { get; set; }
 
@@ -51,6 +55,7 @@ namespace MCloudServer
         public int id { get; set; }
         public int owner { get; set; }
         public string name { get; set; }
+        public string picurl { get; set; }
         public Visibility visibility { get; set; }
 
         public TrackListInfoVM() { }
@@ -61,14 +66,6 @@ namespace MCloudServer
             owner = list.owner;
             name = list.name;
             visibility = list.visibility;
-        }
-    }
-
-    public static class ListExtensions
-    {
-        public static IQueryable<TrackListInfoVM> ToTrackListInfo(this IQueryable<TrackList> lists)
-        {
-            return lists.Select(l => new TrackListInfoVM { id = l.id, owner = l.owner, name = l.name, visibility = l.visibility });
         }
     }
 }

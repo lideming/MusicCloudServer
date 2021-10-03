@@ -85,6 +85,11 @@ namespace MCloudServer.Controllers
             //}
 
             vm.ApplyToList(list);
+            var firstId = list.trackids.FirstOrDefault();
+            list.picId = (await _context.Tracks
+                    .Where(t => t.id == firstId && (t.owner == list.owner || t.visibility == Visibility.Public))
+                    .FirstOrDefaultAsync()
+                )?.pictureFileId;
             list.version++;
 
             if(await _context.FailedSavingChanges()) goto LIST_CHANGED;

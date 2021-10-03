@@ -64,8 +64,9 @@ namespace MCloudServer.Controllers
 
             // get all needed lists in a single SQL query.
             var query = await _context.Lists
+                .Include(l => l.pic)
                 .Where(l => l.owner == user.id || (user.lists.Contains(l.id) && l.visibility == Visibility.Public))
-                .ToTrackListInfo()
+                .Select(l => new TrackListInfoVM { id = l.id, owner = l.owner, name = l.name, visibility = l.visibility, picurl = l.pic.path })
                 .ToListAsync();
 
             // get the order right, remove unreadable items
