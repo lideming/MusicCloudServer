@@ -54,6 +54,7 @@ namespace MCloudServer
     {
         public int id { get; set; }
         public int owner { get; set; }
+        public string ownerName { get; set; }
         public string name { get; set; }
         public string picurl { get; set; }
         public Visibility visibility { get; set; }
