@@ -6,6 +6,8 @@ using System.IO;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace MCloudServer
 {
@@ -31,6 +33,9 @@ namespace MCloudServer
 
         public int? pictureFileId {get;set; }
         public StoredFile pictureFile { get; set; }
+
+        public int? thumbPictureFileId {get;set; }
+        public StoredFile thumbPictureFile { get; set; }
 
         [ConcurrencyCheck]
         public int version { get; set; }
@@ -150,9 +155,19 @@ namespace MCloudServer
                 if (info.EmbeddedPictures.Count > 0) {
                     var picData = info.EmbeddedPictures[0].PictureData;
                     var path = "storage/pic/" + Path.GetFileNameWithoutExtension(this.url) + ".jpg";
+                    var pathSmall = path + ".128.jpg";
                     var fsPath = app.Config.ResolveStoragePath(path);
+                    var fsPathSmall = fsPath + ".128.jpg";
                     Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
                     File.WriteAllBytes(fsPath, picData);
+                    using (var origPic = Image.Load(picData)) {
+                        origPic.Mutate(p => p.Resize(128, 0));
+                        origPic.SaveAsJpeg(fsPathSmall);
+                    }
+                    this.thumbPictureFile = new StoredFile {
+                        path = pathSmall,
+                        size = new FileInfo(fsPathSmall).Length
+                    };
                     this.pictureFile = new StoredFile {
                         path = path,
                         size = picData.Length
@@ -164,6 +179,7 @@ namespace MCloudServer
         public static IIncludableQueryable<Track, StoredFile> Includes(IQueryable<Track> tracks) {
             return tracks
                 .Include(t => t.pictureFile)
+                .Include(t => t.thumbPictureFile)
                 .Include(t => t.fileRecord)
                 .Include(t => t.files).ThenInclude(f => f.File);
         }
@@ -191,6 +207,7 @@ namespace MCloudServer
         public string albumArtist { get; set; }
         public string url { get; set; }
         public string picurl { get; set; }
+        public string thumburl { get; set; }
         public long size { get; set; }
         public int length { get; set; }
         public int owner { get; set; }
@@ -213,6 +230,7 @@ namespace MCloudServer
                 albumArtist = t.albumArtist,
                 url = t.url,
                 picurl = t.pictureFile?.path,
+                thumburl = t.thumbPictureFile?.path,
                 size = t.size,
                 length = t.length,
                 owner = t.owner,

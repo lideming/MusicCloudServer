@@ -95,7 +95,7 @@ namespace MCloudServer.Controllers
             list.picId = (await _context.Tracks
                     .Where(t => t.id == firstId && (t.owner == list.owner || t.visibility == Visibility.Public))
                     .FirstOrDefaultAsync()
-                )?.pictureFileId;
+                )?.thumbPictureFileId;
             list.version++;
 
             if(await _context.FailedSavingChanges()) goto LIST_CHANGED;
