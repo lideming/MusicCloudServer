@@ -248,6 +248,7 @@ namespace MCloudServer
             }
             if (val == "4") {
                 val = "5";
+                logger.LogInformation("Migration v5: creating thumbnail pictures...");
                 var count = 0;
                 var tracksWithPic = dbctx.Tracks
                     .Include(t => t.pictureFile)
@@ -264,11 +265,13 @@ namespace MCloudServer
                         size = new FileInfo(fsPathSmall).Length
                     };
                     if (++count % 100 == 0) {
-                        logger.LogInformation("Created {count} small pictures.", count);
+                        logger.LogInformation("Created {count} thumbnail pictures.", count);
                         await dbctx.SaveChangesAsync();
                     }
                 }
-                logger.LogInformation("Created {count} small pictures.", count);
+                logger.LogInformation("Created {count} thumbnail pictures.", count);
+                await dbctx.SaveChangesAsync();
+                logger.LogInformation("Migration v5: update list picId for thumbnails...");
                 count = 0;
                 foreach (var list in dbctx.Lists)
                 {
@@ -286,6 +289,7 @@ namespace MCloudServer
                 }
                 logger.LogInformation("Updated {count} lists for pic.", count);
                 await dbctx.SaveChangesAsync();
+                logger.LogInformation("Migration v5: done.");
             }
             if (val != "5") {
                 throw new Exception($"Unsupported appver \"{val}\"");
