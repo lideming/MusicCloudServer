@@ -171,6 +171,12 @@ namespace MCloudServer.Controllers
             });
         }
 
+        public class UploadRequestArg
+        {
+            public string Filename { get; set; }
+            public long Size { get; set; }
+        }
+
         [HttpPost("uploadrequest")]
         public async Task<ActionResult> UploadRequest([FromBody] UploadRequestArg arg)
         {
@@ -193,84 +199,8 @@ namespace MCloudServer.Controllers
             }
             else
             {
-                var r = await _app.StorageService.RequestUpload(new RequestUploadOptions
-                {
-                    DestFilePath = filepath,
-                    Length = arg.Size
-                });
-
-                return new JsonResult(new
-                {
-                    mode = "put-url",
-                    url = r.Url,
-                    method = r.Method,
-                    tag = filepath + "|" + arg.Size + "|" + _app.SignTag(r.Url + "|" + filepath + "|" + arg.Size)
-                });
+                throw new Exception("Unexpected StorageMode");;
             }
-        }
-
-        public class UploadRequestArg
-        {
-            public string Filename { get; set; }
-            public long Size { get; set; }
-        }
-
-        public class UploadResultArg
-        {
-            public string Url { get; set; }
-            public string Filename { get; set; }
-            public string Tag { get; set; }
-        }
-
-        [HttpPost("uploadresult")]
-        public async Task<ActionResult> UploadResult([FromBody] UploadResultArg arg)
-        {
-            if (!_context.IsLogged) return GetErrorResult("no_login");
-
-            var tagSplits = arg.Tag.Split('|');
-            var filepath = tagSplits[0];
-            var size = long.Parse(tagSplits[1]);
-            if (tagSplits[2] != _app.SignTag(arg.Url + "|" + filepath + "|" + size))
-                return GetErrorResult("invalid_tag");
-
-            var track = new Track
-            {
-                name = arg.Filename,
-                artist = "Unknown",
-                owner = _context.User.id,
-                fileRecord = new StoredFile{
-                    path = "storage/" + filepath,
-                    size = size
-                }
-            };
-
-            var extNamePos = arg.Filename.LastIndexOf('.');
-            var extName = extNamePos >= 0 ? arg.Filename.Substring(extNamePos + 1).ToLower() : null;
-
-            if (extName == null && _context.User.role == UserRole.SuperAdmin)
-            {
-                track.artist = "";
-            }
-            else
-            {
-                Directory.CreateDirectory(Path.Combine(_context.MCloudConfig.StorageDir, "tracks"));
-                var destFile = Path.Combine(_context.MCloudConfig.StorageDir, filepath);
-
-                await _app.StorageService.GetFile(arg.Url, destFile);
-
-                if (new FileInfo(destFile).Length != size)
-                {
-                    track.DeleteFile(_app);
-                    return GetErrorResult("wrong_size");
-                }
-
-                await ReadTrackFileInfo(track);
-            }
-
-            AddTrackWithFile(track, extName);
-            await _context.SaveChangesAsync();
-
-            return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 
         // [Warning! New Binary Format!]

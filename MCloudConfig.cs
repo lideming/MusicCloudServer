@@ -27,8 +27,6 @@ namespace MCloudServer
 
         public string StorageUrlBase { get; set; }
 
-        public string StorageArg { get; set; }
-
         public string Passcode { get; set; }
         // "passcode"
 
