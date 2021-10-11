@@ -121,7 +121,7 @@ namespace MCloudServer
                 {
                     if (ctx.Request.Path.StartsWithSegments("/api/storage"))
                     {
-                        ctx.Response.Headers.Add("Cache-Control", "public");
+                        ctx.Response.Headers.Add("Cache-Control", "public, max-age=31536000, immutable");
                     }
                     await next();
                 });
