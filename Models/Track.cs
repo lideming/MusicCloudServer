@@ -40,6 +40,8 @@ namespace MCloudServer
         [ConcurrencyCheck]
         public int version { get; set; }
 
+        public DateTime ctime { get; set; }
+
         public string lyrics { get; set; }
 
         [InverseProperty("Track")]
@@ -213,6 +215,7 @@ namespace MCloudServer
         public int owner { get; set; }
         public Visibility? visibility { get; set; }
         public int? version { get; set; }
+        public DateTime ctime { get; set; }
 
         public string lyrics { get; set; }
 
@@ -237,7 +240,8 @@ namespace MCloudServer
                 visibility = t.visibility,
                 lyrics = string.IsNullOrEmpty(t.lyrics) ? "" : withLyrics ? t.lyrics : null,
                 groupId = t.groupId,
-                version = t.version
+                version = t.version,
+                ctime = t.ctime,
             };
             if (app.Config.Converters?.Count > 0 || t.files?.Count > 0) {
                 var origBitrate = (int)(t.length > 0 ? t.size / t.length / 128 : 0);

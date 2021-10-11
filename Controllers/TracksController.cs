@@ -241,7 +241,14 @@ namespace MCloudServer.Controllers
             if (jsonBytesLen < 0 || jsonBytesLen > 1000)
                 return GetErrorResult("json_len_out_of_range");
             var jsonStr = await ReadString(stream, jsonBytesLen);
-            var track = JsonSerializer.Deserialize<Track>(jsonStr);
+            var trackvm = JsonSerializer.Deserialize<TrackVM>(jsonStr);
+            var track = new Track();
+            track.name = trackvm.name;
+            track.artist = trackvm.artist;
+            track.album = trackvm.album;
+            track.albumArtist = trackvm.albumArtist;
+            track.lyrics = trackvm.lyrics;
+            track.ctime = DateTime.Now;
 
             var extNamePos = track.name.LastIndexOf('.');
             var extName = extNamePos >= 0 ? track.name.Substring(extNamePos + 1).ToLower() : "mp3";
