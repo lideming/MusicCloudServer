@@ -149,25 +149,33 @@ namespace MCloudServer.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> FindTracks([FromQuery] string query, [FromQuery] int? offset)
+        public async Task<ActionResult> FindTracks([FromQuery] string query, [FromQuery] int? beforeId)
         {
+            var limit = 200;
             var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
-            if (query == null) return GetErrorResult("no_query");
+            // if (query == null) return GetErrorResult("no_query");
 
             var uid = user?.id ?? 0;
-            query = query.ToLower();
-            var result = Track.Includes(_context.Tracks).Where(t =>
-                (t.owner == uid || t.visibility == Visibility.Public) // visible by user
-                && (
+            var result = Track.Includes(_context.Tracks)
+                .Where(t =>(t.owner == uid || t.visibility == Visibility.Public)); // visible by user
+            if (query?.Length > 0) {
+                query = query.ToLower();
+                result = result.Where(t => (
                     t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query) ||
                     t.album.ToLower().Contains(query) || t.albumArtist.ToLower().Contains(query)
-                )
-            ).Skip(offset ?? 0).Take(200);
+                ));
+            }
+            if (beforeId is int id) {
+                result = result.Where(t => t.id < beforeId);
+            }
+            result = result.OrderByDescending(t => t.id);
+            result = result.Take(limit);
 
             return new JsonResult(new
             {
-                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false))
+                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false)),
+                limit
             });
         }
 
