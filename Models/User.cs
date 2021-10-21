@@ -14,6 +14,9 @@ namespace MCloudServer
         public string passwd { get; set; }
         public string last_playing { get; set; }
 
+        public int? avatarId { get; set; }
+        public StoredFile avatar { get; set; }
+
         [ConcurrencyCheck]
         public int version { get; set; }
 

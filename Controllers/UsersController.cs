@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MCloudServer;
+using System.IO;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace MCloudServer.Controllers
 {
@@ -80,12 +83,15 @@ namespace MCloudServer.Controllers
             // add possible missing items owned by the user
             lists.AddRange(query.Where(x => !lists.Contains(x)));
 
+            var avatar = user.avatarId.HasValue ? await _context.Files.FindAsync(user.avatarId.Value) : null;
+
             if (me)
             {
                 return new JsonResult(new
                 {
                     id = user.id,
                     username = user.username,
+                    avatar = avatar?.path,
                     lists = lists,
                     playing = await GetUserPlaying(user),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
@@ -106,6 +112,7 @@ namespace MCloudServer.Controllers
                 {
                     id = user.id,
                     username = user.username,
+                    avatar = avatar?.path,
                     lists = lists.Where(l => l.visibility == Visibility.Public)
                 });
             }
@@ -140,6 +147,29 @@ namespace MCloudServer.Controllers
             if (await _context.FailedSavingChanges()) goto RETRY;
 
             return await GetUser(user);
+        }
+
+        [HttpPut("me/avatar")]
+        public async Task<IActionResult> PutUserAvatar() {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            byte[] pic;
+            using(var ms = new MemoryStream()) {
+                await Request.Body.CopyToAsync(ms);
+                pic = ms.ToArray();
+            }
+            var internalPath = "storage/pic/" + Guid.NewGuid().ToString("D") + ".avatar.128.jpg";
+            var fsPath = _app.ResolveStoragePath(internalPath);
+            using (var img = Image.Load(pic)) {
+                img.Mutate(p => p.Resize(128, 0));
+                img.SaveAsJpeg(fsPath);
+            }
+            login.avatar = new StoredFile {
+                path = internalPath,
+                size = new FileInfo(fsPath).Length,
+            };
+            await _context.SaveChangesAsync();
+            return Ok();
         }
 
         [HttpPost("me/playing")]
