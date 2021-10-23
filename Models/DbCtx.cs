@@ -30,6 +30,7 @@ namespace MCloudServer
         public DbSet<PlayRecord> Plays { get; set; }
         public DbSet<StoredFile> Files { get; set; }
         public DbSet<TrackFile> TrackFiles { get; set; }
+        public DbSet<TrackAudioInfo> TrackAudioInfos { get; set; }
 
         public UserService UserService { get; set; }
         public bool IsLogged => UserService.IsLogged;

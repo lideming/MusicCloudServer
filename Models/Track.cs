@@ -318,6 +318,17 @@ namespace MCloudServer
             => HashCode.Combine(ConvName, Format);
     }
 
+    [Table("trackAudioInfo")]
+    public class TrackAudioInfo
+    {
+        [Key]
+        public int Id {get; set;}
+        [ForeignKey("Id")]
+        public Track Track { get; set; }
+
+        public byte[] Peaks { get; set; }
+    }
+
     public class TrackLocation
     {
         public int listid { get; set; }

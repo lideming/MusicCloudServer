@@ -10,6 +10,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace MCloudServer.Controllers
 {
@@ -146,6 +147,56 @@ namespace MCloudServer.Controllers
             }
 
             return new JsonResult(new TrackFileVM(file));
+        }
+
+        [HttpGet("{id}/loudnessmap")]
+        public async Task<ActionResult> GetAudioAnalytics(int id)
+        {
+            var user = await GetLoginUser();
+            var track = await _context.GetTrack(id);
+            if (track == null || !track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
+
+            var info = await _context.TrackAudioInfos.FindAsync(id);
+            if (info == null) {
+                var input = _app.ResolveStoragePath(track.fileRecord.path);
+                using (var ms = new MemoryStream()) {
+                    var proc = Process.Start(new ProcessStartInfo() {
+                        FileName = "ffmpeg",
+                        Arguments = $"-i {input} -f s8 -c:a pcm_s8 -",
+                        RedirectStandardOutput = true,
+                    });
+                    var pcm = proc.StandardOutput.BaseStream;
+                    var buffer = new byte[64 * 1024];
+                    while(true) {
+                        var read = await pcm.ReadAsync(buffer, 0, buffer.Length);
+                        if (read == 0) break;
+                        if (read < 256) continue;
+                        int sum = 0;
+                        for (var i = 0; i < read; i += 256) {
+                            var x = (sbyte)buffer[i];
+                            sum += x * x;
+                        }
+                        int count = read / 256;
+                        var rms = Math.Sqrt(sum / count);
+                        ms.WriteByte((byte)rms);
+                    }
+
+                    info = new TrackAudioInfo() {
+                        Id = id,
+                        Peaks = ms.ToArray(),
+                    };
+                }
+                _context.TrackAudioInfos.Add(info);
+                try
+                {
+                     await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    logger.LogWarning("Saving loudness and DbUpdateConcurrencyException");
+                }
+            }
+            return new FileStreamResult(new MemoryStream(info.Peaks, false), "application/octet-stream");
         }
 
         [HttpGet]
