@@ -345,6 +345,16 @@ namespace MCloudServer.Controllers
             });
         }
 
+        [HttpGet("{id}/avatar.jpg")]
+        public async Task<ActionResult> GetAvatar([FromRoute] string id)
+        {
+            User user = await _context.GetUserFromIdOrName(id);
+            if (user == null) return NotFound();
+            if (user.avatarId == null) return NotFound();
+            var avatar = await _context.Files.FindAsync(user.avatarId);
+            return Redirect(_app.GetFullUrlFromStoragePath(avatar.path));
+        }
+
         [HttpGet("{id}/recentplays")]
         public async Task<ActionResult> GetRecentPlays([FromRoute] string id)
         {
