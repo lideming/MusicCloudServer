@@ -154,28 +154,38 @@ namespace MCloudServer
             {
                 Console.WriteLine("==================");
                 Console.WriteLine(info.EmbeddedPictures.Count);
-                if (info.EmbeddedPictures.Count > 0) {
+                if (info.EmbeddedPictures.Count > 0)
+                {
                     var picData = info.EmbeddedPictures[0].PictureData;
-                    var path = "storage/pic/" + Path.GetFileNameWithoutExtension(this.url) + ".jpg";
-                    var pathSmall = path + ".128.jpg";
-                    var fsPath = app.Config.ResolveStoragePath(path);
-                    var fsPathSmall = fsPath + ".128.jpg";
-                    Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
-                    File.WriteAllBytes(fsPath, picData);
-                    using (var origPic = Image.Load(picData)) {
-                        origPic.Mutate(p => p.Resize(128, 0));
-                        origPic.SaveAsJpeg(fsPathSmall);
-                    }
-                    this.thumbPictureFile = new StoredFile {
-                        path = pathSmall,
-                        size = new FileInfo(fsPathSmall).Length
-                    };
-                    this.pictureFile = new StoredFile {
-                        path = path,
-                        size = picData.Length
-                    };
+                    SetPicture(app, picData);
                 }
             }
+        }
+
+        public void SetPicture(AppService app, byte[] picData)
+        {
+            // Not using MemoryStream for picData because we have to load it into the memory anyway.
+            var path = "storage/pic/" + Guid.NewGuid().ToString("D") + ".jpg";
+            var pathSmall = path + ".128.jpg";
+            var fsPath = app.Config.ResolveStoragePath(path);
+            var fsPathSmall = fsPath + ".128.jpg";
+            Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
+            File.WriteAllBytes(fsPath, picData);
+            using (var origPic = Image.Load(picData))
+            {
+                origPic.Mutate(p => p.Resize(128, 0));
+                origPic.SaveAsJpeg(fsPathSmall);
+            }
+            this.thumbPictureFile = new StoredFile
+            {
+                path = pathSmall,
+                size = new FileInfo(fsPathSmall).Length
+            };
+            this.pictureFile = new StoredFile
+            {
+                path = path,
+                size = picData.Length
+            };
         }
 
         public static IIncludableQueryable<Track, StoredFile> Includes(IQueryable<Track> tracks) {

@@ -65,6 +65,23 @@ namespace MCloudServer.Controllers
             });
         }
 
+        [HttpPut("{id}/picture")]
+        public async Task<IActionResult> PutPicture(int id)
+        {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            byte[] pic;
+            using(var ms = new MemoryStream()) {
+                await Request.Body.CopyToAsync(ms);
+                pic = ms.ToArray();
+            }
+            var track = await _context.GetTrack(id);
+            if (track?.IsWritableByUser(login) != true) return GetErrorResult("track_not_found");
+            track.SetPicture(_app, pic);
+            await _context.SaveChangesAsync();
+            return new JsonResult(TrackVM.FromTrack(track, _app, true));
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult> GetTrack(int id)
         {
