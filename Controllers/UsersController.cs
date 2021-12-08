@@ -160,6 +160,7 @@ namespace MCloudServer.Controllers
             }
             var internalPath = "storage/pic/" + Guid.NewGuid().ToString("D") + ".avatar.128.jpg";
             var fsPath = _app.ResolveStoragePath(internalPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
             using (var img = Image.Load(pic)) {
                 img.Mutate(p => p.Resize(128, 0));
                 img.SaveAsJpeg(fsPath);
