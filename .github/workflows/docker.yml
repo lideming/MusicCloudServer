@@ -3,7 +3,7 @@ name: ci
 on:
   push:
     branches:
-      - 'master'
+      - 'migration-file'
 
 jobs:
   docker:
@@ -31,6 +31,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
-          tags: yuuza/musiccloud:latest
+          tags: yuuza/musiccloud:migration-file
