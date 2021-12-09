@@ -84,11 +84,29 @@ namespace MCloudServer.Controllers
                     result = "ok";
                     var listFail = new List<int>();
                     await _context.Tracks
+                        .Include(t => t.fileRecord)
                         .Where(t => t.album == "")
                         .ForEachAsync((t) => {
                         if (t.TryGetStoragePath(_app, out var path)) {
                             try {
                                 t.ReadAlbumFromFile(_app);
+                            } catch (Exception) {
+                                listFail.Add(t.id);
+                            }
+                        }
+                    });
+                    await _context.SaveChangesAsync();
+                    sb.Append("except: ").Append(string.Join(" ", listFail));
+                } else if (arg == "tracks_pic") {
+                    result = "ok";
+                    var listFail = new List<int>();
+                    await _context.Tracks
+                        .Include(t => t.fileRecord)
+                        .Where(t => t.pictureFileId == null)
+                        .ForEachAsync((t) => {
+                        if (t.TryGetStoragePath(_app, out var path)) {
+                            try {
+                                t.ReadPicutreFromTrackFile(_app);
                             } catch (Exception) {
                                 listFail.Add(t.id);
                             }

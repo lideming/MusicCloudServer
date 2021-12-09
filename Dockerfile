@@ -29,7 +29,7 @@ COPY . ./
 RUN dotnet publish -c Release -o out --no-self-contained \
         -r alpine-$([ "$(uname -m)" == aarch64 ] && echo arm64 || echo x64 )
 
-COPY --from=build-webapp-env /app/bundle.js /app/index.html /app/out/webapp/
+COPY --from=build-webapp-env /app/dist/ /app/out/webapp/
 
 
 #==> Build the actual app container

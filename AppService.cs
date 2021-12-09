@@ -29,5 +29,18 @@ namespace MCloudServer
         byte[] signKey;
 
         public string SignTag(string str) => Utils.SignTag(str, signKey);
+
+        public string ResolveStoragePath(string path) => Config.ResolveStoragePath(path);
+        public bool TryResolveStoragePath(string path, out string fsPath) => Config.TryResolveStoragePath(path, out fsPath);
+
+        public string GetFullUrlFromStoragePath(string path) {
+            if (!path.StartsWith("storage/")) throw new Exception("Unknown prefix");
+            if (string.IsNullOrEmpty(Config.StorageUrlBase)) {
+                // Well, this is not "full" URL
+                return "/api/storage/" + path.Substring(8);
+            } else {
+                return Config.StorageUrlBase + path.Substring(8);
+            }
+        }
     }
 }

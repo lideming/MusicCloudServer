@@ -16,6 +16,8 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SimplePasscode;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace MCloudServer
 {
@@ -60,15 +62,7 @@ namespace MCloudServer
             services.AddScoped<UserService>();
             services.AddAuthentication("UserAuth")
                 .AddScheme<AuthenticationSchemeOptions, UserService.AuthHandler>("UserAuth", null);
-            if (MyConfigration.StorageArg?.StartsWith("qcloud:") == true)
-            {
-                services.AddSingleton<StorageService>(
-                    new QcloudStorageService(MyConfigration.StorageArg.Split(':')));
-            }
-            else
-            {
-                services.AddSingleton<StorageService>(new LocalStorageService());
-            }
+            services.AddSingleton<StorageService>(new LocalStorageService());
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -127,7 +121,7 @@ namespace MCloudServer
                 {
                     if (ctx.Request.Path.StartsWithSegments("/api/storage"))
                     {
-                        ctx.Response.Headers.Add("Cache-Control", "public");
+                        ctx.Response.Headers.Add("Cache-Control", "public, max-age=31536000, immutable");
                     }
                     await next();
                 });
@@ -244,7 +238,52 @@ namespace MCloudServer
             if (val == null) {
                 val = "4";
             }
-            if (val != "4") {
+            if (val == "4") {
+                val = "5";
+                logger.LogInformation("Migration v5: creating thumbnail pictures...");
+                var count = 0;
+                var tracksWithPic = dbctx.Tracks
+                    .Include(t => t.pictureFile)
+                    .Where(t => t.pictureFileId != null);
+                foreach (var track in tracksWithPic) {
+                    var pathSmall = track.pictureFile.path + ".128.jpg";
+                    var fsPathSmall = appService.ResolveStoragePath(pathSmall);
+                    using (var origPic = Image.Load(appService.ResolveStoragePath(track.pictureFile.path))) {
+                        origPic.Mutate(p => p.Resize(128, 0));
+                        origPic.SaveAsJpeg(fsPathSmall);
+                    }
+                    track.thumbPictureFile = new StoredFile {
+                        path = pathSmall,
+                        size = new FileInfo(fsPathSmall).Length
+                    };
+                    if (++count % 100 == 0) {
+                        logger.LogInformation("Created {count} thumbnail pictures.", count);
+                        await dbctx.SaveChangesAsync();
+                    }
+                }
+                logger.LogInformation("Created {count} thumbnail pictures.", count);
+                await dbctx.SaveChangesAsync();
+                logger.LogInformation("Migration v5: update list picId for thumbnails...");
+                count = 0;
+                foreach (var list in dbctx.Lists)
+                {
+                    var firstId = list.trackids.FirstOrDefault();
+                    if (firstId != 0) {
+                        list.picId = (await dbctx.Tracks
+                            .Where(t => t.id == firstId && (t.owner == list.owner || t.visibility == Visibility.Public))
+                            .FirstOrDefaultAsync()
+                        )?.thumbPictureFileId;
+                    }
+                    if (++count % 100 == 0) {
+                        logger.LogInformation("Updated {count} lists for pic.", count);
+                        await dbctx.SaveChangesAsync();
+                    }
+                }
+                logger.LogInformation("Updated {count} lists for pic.", count);
+                await dbctx.SaveChangesAsync();
+                logger.LogInformation("Migration v5: done.");
+            }
+            if (val != "5") {
                 throw new Exception($"Unsupported appver \"{val}\"");
             }
             if (val != origVal)

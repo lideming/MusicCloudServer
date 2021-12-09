@@ -44,7 +44,11 @@ namespace MCloudServer.Controllers
             var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
 
-            var list = await _context.Lists.FindAsync(id);
+            var list = await _context.Lists
+                .Include(l => l.user)
+                .Include(l => l.pic)
+                .Where(l => l.id == id)
+                .FirstOrDefaultAsync();
             if (list?.IsVisibleToUser(user) != true) return GetErrorResult("list_not_found");
 
             var tracks = _context.GetTracks(list.trackids)
@@ -56,6 +60,8 @@ namespace MCloudServer.Controllers
             {
                 id = list.id,
                 owner = list.owner,
+                ownerName = list.user?.username,
+                picurl = list.pic?.path,
                 name = list.name,
                 visibility = list.visibility,
                 tracks = tracks,
@@ -85,6 +91,11 @@ namespace MCloudServer.Controllers
             //}
 
             vm.ApplyToList(list);
+            var firstId = list.trackids.FirstOrDefault();
+            list.picId = (await _context.Tracks
+                    .Where(t => t.id == firstId && (t.owner == list.owner || t.visibility == Visibility.Public))
+                    .FirstOrDefaultAsync()
+                )?.thumbPictureFileId;
             list.version++;
 
             if(await _context.FailedSavingChanges()) goto LIST_CHANGED;

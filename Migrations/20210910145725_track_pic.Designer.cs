@@ -3,14 +3,16 @@ using System;
 using MCloudServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
-    partial class DbCtxModelSnapshot : ModelSnapshot
+    [Migration("20210910145725_track_pic")]
+    partial class track_pic
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -146,9 +148,6 @@ namespace MCloudServer.Migrations
                     b.Property<string>("artist")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("ctime")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("fileRecordId")
                         .HasColumnType("INTEGER");
 
@@ -170,9 +169,6 @@ namespace MCloudServer.Migrations
                     b.Property<int?>("pictureFileId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("thumbPictureFileId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("version")
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
@@ -188,22 +184,7 @@ namespace MCloudServer.Migrations
 
                     b.HasIndex("pictureFileId");
 
-                    b.HasIndex("thumbPictureFileId");
-
                     b.ToTable("tracks");
-                });
-
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<byte[]>("Peaks")
-                        .HasColumnType("BLOB");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("trackAudioInfo");
                 });
 
             modelBuilder.Entity("MCloudServer.TrackFile", b =>
@@ -248,9 +229,6 @@ namespace MCloudServer.Migrations
                     b.Property<int>("owner")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("picId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("trackids")
                         .HasColumnType("TEXT");
 
@@ -265,8 +243,6 @@ namespace MCloudServer.Migrations
 
                     b.HasIndex("owner");
 
-                    b.HasIndex("picId");
-
                     b.ToTable("lists");
                 });
 
@@ -274,9 +250,6 @@ namespace MCloudServer.Migrations
                 {
                     b.Property<int>("id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("avatarId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("last_playing")
@@ -299,8 +272,6 @@ namespace MCloudServer.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("id");
-
-                    b.HasIndex("avatarId");
 
                     b.HasIndex("username")
                         .IsUnique();
@@ -365,28 +336,11 @@ namespace MCloudServer.Migrations
                         .WithMany()
                         .HasForeignKey("pictureFileId");
 
-                    b.HasOne("MCloudServer.StoredFile", "thumbPictureFile")
-                        .WithMany()
-                        .HasForeignKey("thumbPictureFileId");
-
                     b.Navigation("fileRecord");
 
                     b.Navigation("pictureFile");
 
-                    b.Navigation("thumbPictureFile");
-
                     b.Navigation("user");
-                });
-
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.HasOne("MCloudServer.Track", "Track")
-                        .WithMany()
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Track");
                 });
 
             modelBuilder.Entity("MCloudServer.TrackFile", b =>
@@ -416,22 +370,7 @@ namespace MCloudServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("MCloudServer.StoredFile", "pic")
-                        .WithMany()
-                        .HasForeignKey("picId");
-
-                    b.Navigation("pic");
-
                     b.Navigation("user");
-                });
-
-            modelBuilder.Entity("MCloudServer.User", b =>
-                {
-                    b.HasOne("MCloudServer.StoredFile", "avatar")
-                        .WithMany()
-                        .HasForeignKey("avatarId");
-
-                    b.Navigation("avatar");
                 });
 
             modelBuilder.Entity("MCloudServer.Track", b =>

@@ -9,6 +9,8 @@ using MCloudServer;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace MCloudServer.Controllers
 {
@@ -16,9 +18,12 @@ namespace MCloudServer.Controllers
     [ApiController]
     public class TracksController : MyControllerBase
     {
-        public TracksController(DbCtx context) : base(context)
+        public TracksController(DbCtx context, ILogger<TracksController> logger) : base(context)
         {
+            this.logger = logger;
         }
+
+        private readonly ILogger<TracksController> logger;
 
         [HttpPut("{id}")]
         public async Task<ActionResult> PutTrack(int id, TrackVM vm)
@@ -58,6 +63,23 @@ namespace MCloudServer.Controllers
                 error = "track_changed",
                 track = TrackVM.FromTrack(track, _app, vm.lyrics != null)
             });
+        }
+
+        [HttpPut("{id}/picture")]
+        public async Task<IActionResult> PutPicture(int id)
+        {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            byte[] pic;
+            using(var ms = new MemoryStream()) {
+                await Request.Body.CopyToAsync(ms);
+                pic = ms.ToArray();
+            }
+            var track = await _context.GetTrack(id);
+            if (track?.IsWritableByUser(login) != true) return GetErrorResult("track_not_found");
+            track.SetPicture(_app, pic);
+            await _context.SaveChangesAsync();
+            return new JsonResult(TrackVM.FromTrack(track, _app, true));
         }
 
         [HttpGet("{id}")]
@@ -144,27 +166,91 @@ namespace MCloudServer.Controllers
             return new JsonResult(new TrackFileVM(file));
         }
 
-        [HttpGet]
-        public async Task<ActionResult> FindTracks([FromQuery] string query, [FromQuery] int? offset)
+        [HttpGet("{id}/loudnessmap")]
+        public async Task<ActionResult> GetAudioAnalytics(int id)
         {
             var user = await GetLoginUser();
+            var track = await _context.GetTrack(id);
+            if (track == null || !track.IsVisibleToUser(user)) return GetErrorResult("track_not_found");
+
+            var info = await _context.TrackAudioInfos.FindAsync(id);
+            if (info == null) {
+                var input = _app.ResolveStoragePath(track.fileRecord.path);
+                using (var ms = new MemoryStream()) {
+                    var proc = Process.Start(new ProcessStartInfo() {
+                        FileName = "ffmpeg",
+                        Arguments = $"-i {input} -f s8 -c:a pcm_s8 -",
+                        RedirectStandardOutput = true,
+                    });
+                    var pcm = proc.StandardOutput.BaseStream;
+                    var buffer = new byte[64 * 1024];
+                    while(true) {
+                        var read = await pcm.ReadAsync(buffer, 0, buffer.Length);
+                        if (read == 0) break;
+                        if (read < 256) continue;
+                        int sum = 0;
+                        for (var i = 0; i < read; i += 256) {
+                            var x = (sbyte)buffer[i];
+                            sum += x * x;
+                        }
+                        int count = read / 256;
+                        var rms = Math.Sqrt(sum / count);
+                        ms.WriteByte((byte)rms);
+                    }
+
+                    info = new TrackAudioInfo() {
+                        Id = id,
+                        Peaks = ms.ToArray(),
+                    };
+                }
+                _context.TrackAudioInfos.Add(info);
+                try
+                {
+                     await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    logger.LogWarning("Saving loudness and DbUpdateConcurrencyException");
+                }
+            }
+            return new FileStreamResult(new MemoryStream(info.Peaks, false), "application/octet-stream");
+        }
+
+        [HttpGet]
+        public async Task<ActionResult> FindTracks([FromQuery] string query, [FromQuery] int? beforeId)
+        {
+            var limit = 200;
+            var user = await GetLoginUser();
             //if (user == null) return GetErrorResult("no_login");
-            if (query == null) return GetErrorResult("no_query");
+            // if (query == null) return GetErrorResult("no_query");
 
             var uid = user?.id ?? 0;
-            query = query.ToLower();
-            var result = Track.Includes(_context.Tracks).Where(t =>
-                (t.owner == uid || t.visibility == Visibility.Public) // visible by user
-                && (
+            var result = Track.Includes(_context.Tracks)
+                .Where(t =>(t.owner == uid || t.visibility == Visibility.Public)); // visible by user
+            if (query?.Length > 0) {
+                query = query.ToLower();
+                result = result.Where(t => (
                     t.name.ToLower().Contains(query) || t.artist.ToLower().Contains(query) ||
                     t.album.ToLower().Contains(query) || t.albumArtist.ToLower().Contains(query)
-                )
-            ).Skip(offset ?? 0).Take(200);
+                ));
+            }
+            if (beforeId is int id) {
+                result = result.Where(t => t.id < beforeId);
+            }
+            result = result.OrderByDescending(t => t.id);
+            result = result.Take(limit);
 
             return new JsonResult(new
             {
-                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false))
+                tracks = result.Select(x => TrackVM.FromTrack(x, _app, false)),
+                limit
             });
+        }
+
+        public class UploadRequestArg
+        {
+            public string Filename { get; set; }
+            public long Size { get; set; }
         }
 
         [HttpPost("uploadrequest")]
@@ -189,93 +275,8 @@ namespace MCloudServer.Controllers
             }
             else
             {
-                var r = await _app.StorageService.RequestUpload(new RequestUploadOptions
-                {
-                    DestFilePath = filepath,
-                    Length = arg.Size
-                });
-
-                return new JsonResult(new
-                {
-                    mode = "put-url",
-                    url = r.Url,
-                    method = r.Method,
-                    tag = filepath + "|" + arg.Size + "|" + _app.SignTag(r.Url + "|" + filepath + "|" + arg.Size)
-                });
+                throw new Exception("Unexpected StorageMode");;
             }
-        }
-
-        public class UploadRequestArg
-        {
-            public string Filename { get; set; }
-            public long Size { get; set; }
-        }
-
-        public class UploadResultArg
-        {
-            public string Url { get; set; }
-            public string Filename { get; set; }
-            public string Tag { get; set; }
-        }
-
-        [HttpPost("uploadresult")]
-        public async Task<ActionResult> UploadResult([FromBody] UploadResultArg arg)
-        {
-            if (!_context.IsLogged) return GetErrorResult("no_login");
-
-            var tagSplits = arg.Tag.Split('|');
-            var filepath = tagSplits[0];
-            var size = long.Parse(tagSplits[1]);
-            if (tagSplits[2] != _app.SignTag(arg.Url + "|" + filepath + "|" + size))
-                return GetErrorResult("invalid_tag");
-
-            var track = new Track
-            {
-                name = arg.Filename,
-                artist = "Unknown",
-                owner = _context.User.id,
-                fileRecord = new StoredFile{
-                    path = "storage/" + filepath,
-                    size = size
-                }
-            };
-
-            var extNamePos = arg.Filename.LastIndexOf('.');
-            var extName = extNamePos >= 0 ? arg.Filename.Substring(extNamePos + 1).ToLower() : null;
-
-            if (extName == null && _context.User.role == UserRole.SuperAdmin)
-            {
-                track.artist = "";
-            }
-            else
-            {
-                Directory.CreateDirectory(Path.Combine(_context.MCloudConfig.StorageDir, "tracks"));
-                var destFile = Path.Combine(_context.MCloudConfig.StorageDir, filepath);
-
-                await _app.StorageService.GetFile(arg.Url, destFile);
-
-                if (new FileInfo(destFile).Length != size)
-                {
-                    track.DeleteFile(_app);
-                    return GetErrorResult("wrong_size");
-                }
-
-                await Task.Run(() =>
-                {
-                    try
-                    {
-                        track.ReadTrackInfoFromFile(_app);
-                    }
-                    catch
-                    {
-                    }
-                });
-            }
-
-            AddTrackWithFile(track, extName);
-            await _context.SaveChangesAsync();
-
-            return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 
         // [Warning! New Binary Format!]
@@ -316,7 +317,14 @@ namespace MCloudServer.Controllers
             if (jsonBytesLen < 0 || jsonBytesLen > 1000)
                 return GetErrorResult("json_len_out_of_range");
             var jsonStr = await ReadString(stream, jsonBytesLen);
-            var track = JsonSerializer.Deserialize<Track>(jsonStr);
+            var trackvm = JsonSerializer.Deserialize<TrackVM>(jsonStr);
+            var track = new Track();
+            track.name = trackvm.name;
+            track.artist = trackvm.artist;
+            track.album = trackvm.album;
+            track.albumArtist = trackvm.albumArtist;
+            track.lyrics = trackvm.lyrics;
+            track.ctime = DateTime.Now;
 
             var extNamePos = track.name.LastIndexOf('.');
             var extName = extNamePos >= 0 ? track.name.Substring(extNamePos + 1).ToLower() : "mp3";
@@ -360,20 +368,26 @@ namespace MCloudServer.Controllers
                 path = "storage/tracks/" + filename,
                 size = fileLength
             };
-            await Task.Run(() =>
-            {
-                try
-                {
-                    track.ReadTrackInfoFromFile(_app);
-                }
-                catch
-                {
-                }
-            });
+            await ReadTrackFileInfo(track);
             AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
+        }
+
+        private Task ReadTrackFileInfo(Track track) {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    track.ReadTrackInfoFromFile(_app);
+                    track.ReadPicutreFromTrackFile(_app);
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e, "Error reading track info from {path}", track.url);
+                }
+            });
         }
 
         private void AddTrackWithFile(Track track, string extName) {

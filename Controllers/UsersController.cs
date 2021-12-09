@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MCloudServer;
+using System.IO;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace MCloudServer.Controllers
 {
@@ -64,8 +67,14 @@ namespace MCloudServer.Controllers
 
             // get all needed lists in a single SQL query.
             var query = await _context.Lists
+                .Include(l => l.pic)
+                .Include(l => l.user)
                 .Where(l => l.owner == user.id || (user.lists.Contains(l.id) && l.visibility == Visibility.Public))
-                .ToTrackListInfo()
+                .Select(l => new TrackListInfoVM {
+                        id = l.id, owner = l.owner, name = l.name, visibility = l.visibility,
+                        picurl = l.pic.path,
+                        ownerName = l.user.username
+                    })
                 .ToListAsync();
 
             // get the order right, remove unreadable items
@@ -74,12 +83,15 @@ namespace MCloudServer.Controllers
             // add possible missing items owned by the user
             lists.AddRange(query.Where(x => !lists.Contains(x)));
 
+            var avatar = user.avatarId.HasValue ? await _context.Files.FindAsync(user.avatarId.Value) : null;
+
             if (me)
             {
                 return new JsonResult(new
                 {
                     id = user.id,
                     username = user.username,
+                    avatar = avatar?.path,
                     lists = lists,
                     playing = await GetUserPlaying(user),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
@@ -100,6 +112,7 @@ namespace MCloudServer.Controllers
                 {
                     id = user.id,
                     username = user.username,
+                    avatar = avatar?.path,
                     lists = lists.Where(l => l.visibility == Visibility.Public)
                 });
             }
@@ -134,6 +147,30 @@ namespace MCloudServer.Controllers
             if (await _context.FailedSavingChanges()) goto RETRY;
 
             return await GetUser(user);
+        }
+
+        [HttpPut("me/avatar")]
+        public async Task<IActionResult> PutUserAvatar() {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            byte[] pic;
+            using(var ms = new MemoryStream()) {
+                await Request.Body.CopyToAsync(ms);
+                pic = ms.ToArray();
+            }
+            var internalPath = "storage/pic/" + Guid.NewGuid().ToString("D") + ".avatar.128.jpg";
+            var fsPath = _app.ResolveStoragePath(internalPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
+            using (var img = Image.Load(pic)) {
+                img.Mutate(p => p.Resize(128, 0));
+                img.SaveAsJpeg(fsPath);
+            }
+            login.avatar = new StoredFile {
+                path = internalPath,
+                size = new FileInfo(fsPath).Length,
+            };
+            await _context.SaveChangesAsync();
+            return Ok();
         }
 
         [HttpPost("me/playing")]
@@ -288,6 +325,8 @@ namespace MCloudServer.Controllers
             var plays = _context.Plays.Where(p => p.uid == user.id);
 
             var lastplay = await plays.OrderBy(p => p.time)
+                .Include(p => p.Track.pictureFile)
+                .Include(p => p.Track.thumbPictureFile)
                 .Include(p => p.Track.fileRecord)
                 .Include(p => p.Track.files).ThenInclude(f => f.File)
                 .LastOrDefaultAsync();
@@ -305,6 +344,45 @@ namespace MCloudServer.Controllers
                 lastPlayTime = lastPlayTime?.ToUniversalTime(),
                 lastPlayTrack = lastPlayTrack == null ? null : TrackVM.FromTrack(lastPlayTrack, _app)
             });
+        }
+
+        [HttpGet("{id}/avatar.jpg")]
+        public async Task<ActionResult> GetAvatar([FromRoute] string id)
+        {
+            User user = await _context.GetUserFromIdOrName(id);
+            if (user == null) return NotFound();
+            if (user.avatarId == null) return NotFound();
+            var avatar = await _context.Files.FindAsync(user.avatarId);
+            return Redirect(_app.GetFullUrlFromStoragePath(avatar.path));
+        }
+
+        [HttpGet("{id}/recentplays")]
+        public async Task<ActionResult> GetRecentPlays([FromRoute] string id)
+        {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            User user = await _context.GetUserFromIdOrName(id);
+            if (user == null || (user.id != login.id && login.role != UserRole.SuperAdmin))
+                return GetErrorResult("user_not_found");
+
+            var lastplay = await _context.Plays
+                .Where(p => p.uid == user.id)
+                .OrderByDescending(p => p.time)
+                .Include(p => p.Track.pictureFile)
+                .Include(p => p.Track.thumbPictureFile)
+                .Include(p => p.Track.fileRecord)
+                .Include(p => p.Track.files).ThenInclude(f => f.File)
+                .Take(100)
+                .ToListAsync();
+
+            var tracks = lastplay
+                .Select(p => p.Track)
+                .Where(t => t.IsVisibleToUser(login))
+                .Distinct()
+                .Select(t => TrackVM.FromTrack(t, _app))
+                .ToList();
+
+            return new JsonResult(new { tracks });
         }
 
         bool IsNotesEnabled() => _app.Config.NotesEnabled || _context.User.role == UserRole.SuperAdmin;

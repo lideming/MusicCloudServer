@@ -3,14 +3,16 @@ using System;
 using MCloudServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
-    partial class DbCtxModelSnapshot : ModelSnapshot
+    [Migration("20211021130725_user_avatar")]
+    partial class user_avatar
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -193,19 +195,6 @@ namespace MCloudServer.Migrations
                     b.ToTable("tracks");
                 });
 
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<byte[]>("Peaks")
-                        .HasColumnType("BLOB");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("trackAudioInfo");
-                });
-
             modelBuilder.Entity("MCloudServer.TrackFile", b =>
                 {
                     b.Property<int>("Id")
@@ -376,17 +365,6 @@ namespace MCloudServer.Migrations
                     b.Navigation("thumbPictureFile");
 
                     b.Navigation("user");
-                });
-
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.HasOne("MCloudServer.Track", "Track")
-                        .WithMany()
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Track");
                 });
 
             modelBuilder.Entity("MCloudServer.TrackFile", b =>

@@ -3,14 +3,16 @@ using System;
 using MCloudServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
-    partial class DbCtxModelSnapshot : ModelSnapshot
+    [Migration("20211008095712_track_thumbpic")]
+    partial class track_thumbpic
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -146,9 +148,6 @@ namespace MCloudServer.Migrations
                     b.Property<string>("artist")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("ctime")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("fileRecordId")
                         .HasColumnType("INTEGER");
 
@@ -191,19 +190,6 @@ namespace MCloudServer.Migrations
                     b.HasIndex("thumbPictureFileId");
 
                     b.ToTable("tracks");
-                });
-
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<byte[]>("Peaks")
-                        .HasColumnType("BLOB");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("trackAudioInfo");
                 });
 
             modelBuilder.Entity("MCloudServer.TrackFile", b =>
@@ -276,9 +262,6 @@ namespace MCloudServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("avatarId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("last_playing")
                         .HasColumnType("TEXT");
 
@@ -299,8 +282,6 @@ namespace MCloudServer.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("id");
-
-                    b.HasIndex("avatarId");
 
                     b.HasIndex("username")
                         .IsUnique();
@@ -378,17 +359,6 @@ namespace MCloudServer.Migrations
                     b.Navigation("user");
                 });
 
-            modelBuilder.Entity("MCloudServer.TrackAudioInfo", b =>
-                {
-                    b.HasOne("MCloudServer.Track", "Track")
-                        .WithMany()
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Track");
-                });
-
             modelBuilder.Entity("MCloudServer.TrackFile", b =>
                 {
                     b.HasOne("MCloudServer.StoredFile", "File")
@@ -423,15 +393,6 @@ namespace MCloudServer.Migrations
                     b.Navigation("pic");
 
                     b.Navigation("user");
-                });
-
-            modelBuilder.Entity("MCloudServer.User", b =>
-                {
-                    b.HasOne("MCloudServer.StoredFile", "avatar")
-                        .WithMany()
-                        .HasForeignKey("avatarId");
-
-                    b.Navigation("avatar");
                 });
 
             modelBuilder.Entity("MCloudServer.Track", b =>
