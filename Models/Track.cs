@@ -152,8 +152,6 @@ namespace MCloudServer
         {
             if (GetCachedFileInfo(app, out var info))
             {
-                Console.WriteLine("==================");
-                Console.WriteLine(info.EmbeddedPictures.Count);
                 if (info.EmbeddedPictures.Count > 0)
                 {
                     var picData = info.EmbeddedPictures[0].PictureData;
