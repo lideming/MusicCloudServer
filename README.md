@@ -9,14 +9,19 @@ It works out of box (with transcoding).
 ### Run simply
 
 ```shell
-docker run -d yuuza/musiccloud
+docker run -d yuuza/musiccloud:latest
 ```
 
 ### With custom data location
 
 ```shell
-docker run -d --name mc -v /PATH_TO_DATA:/app/data yuuza/musiccloud
+docker run -d --name mc -v /PATH_TO_DATA:/app/data yuuza/musiccloud:latest
 ```
+
+### Image tags
+
+- latest (default): master branch 
+- dev: dev branch
 
 ### With docker-compose
 
@@ -27,7 +32,7 @@ version: "2"
 
 services:
     app:
-        image: yuuza/musiccloud
+        image: yuuza/musiccloud:latest
         volumes:
             - ./data:/app/data
         ports:
@@ -47,16 +52,6 @@ docker-compose up -d
 * [.NET SDK 5](https://dotnet.microsoft.com/download/dotnet-core/3.1)
 * [PostgreSQL](https://www.postgresql.org/) (optional)
 
-### Build
-
-```
-dotnet build
-```
-or
-```
-dotnet build -c Release
-```
-
 ### Configure Back-end
 
 Edit file `appsettings.json`.
@@ -68,9 +63,7 @@ Edit file `appsettings.json`.
 ```
 dotnet run
 ```
-or
-```
-dotnet run -c Release
-```
 
-Now you can access http://localhost:5000/
+In the first time, dotnet will automatically `restore` (i.e. download and install) the project dependencies.
+
+After the server started, you can access http://localhost:5000/
