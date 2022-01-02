@@ -179,7 +179,7 @@ namespace MCloudServer.Controllers
                 using (var ms = new MemoryStream()) {
                     var proc = Process.Start(new ProcessStartInfo() {
                         FileName = "ffmpeg",
-                        Arguments = $"-i {input} -f s8 -c:a pcm_s8 -",
+                        Arguments = $"-loglevel warning -i {input} -f s8 -c:a pcm_s8 -",
                         RedirectStandardOutput = true,
                     });
                     var pcm = proc.StandardOutput.BaseStream;
@@ -294,7 +294,11 @@ namespace MCloudServer.Controllers
         // When finished receiving, the server will response with the new Track entity.
 
         static string[] SupportedFileFormats = new[] {
-            "mp3", "aac", "m4a", "mp4", "ogg", "opus", "flac", "ape", "wav"
+            "mp3", "aac", "m4a", "ogg", "opus", "flac", "ape", "wav"
+        };
+
+        static string[] SupportedVideoFileFormats = new[] {
+            "mp4"
         };
 
         [HttpPost("newfile")]
@@ -328,7 +332,13 @@ namespace MCloudServer.Controllers
 
             var extNamePos = track.name.LastIndexOf('.');
             var extName = extNamePos >= 0 ? track.name.Substring(extNamePos + 1).ToLower() : "mp3";
-            if (!SupportedFileFormats.Contains(extName) && _context.User.role != UserRole.SuperAdmin)
+            TrackType trackType = SupportedFileFormats.Contains(extName) ? TrackType.audio :
+                SupportedVideoFileFormats.Contains(extName) ? TrackType.video : 
+                TrackType.unknown;
+
+            logger.LogInformation("New file ({1}): '{0}'", trackType, track.name);
+
+            if (trackType == TrackType.unknown && _context.User.role != UserRole.SuperAdmin)
                 return GetErrorResult("unsupported_file_format");
 
             // Now start reading the file
@@ -364,6 +374,7 @@ namespace MCloudServer.Controllers
 
             // Fill the track info, and complete.
             track.owner = user.id;
+            track.type = trackType;
             track.fileRecord = new StoredFile {
                 path = "storage/tracks/" + filename,
                 size = fileLength

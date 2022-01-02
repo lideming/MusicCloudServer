@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using SixLabors.ImageSharp;
@@ -19,6 +20,8 @@ namespace MCloudServer
         [ForeignKey("user")]
         public int owner { get; set; } // the id of user that uploads this track
         public User user { get; set; }
+
+        public TrackType type { get; set; }
 
         public Visibility visibility { get; set; }
         public string name { get; set; }
@@ -195,6 +198,13 @@ namespace MCloudServer
         }
     }
 
+    [JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))] 
+    public enum TrackType {
+        unknown = -1,
+        audio = 0,
+        video = 1,
+    }
+
     public class PlayRecord
     {
         public int id { get; set; }
@@ -212,6 +222,7 @@ namespace MCloudServer
     {
         public int id { get; set; }
         public string name { get; set; }
+        public TrackType type { get; set; }
         public string artist { get; set; }
         public string album { get; set; }
         public string albumArtist { get; set; }
@@ -236,6 +247,7 @@ namespace MCloudServer
             var vm = new TrackVM {
                 id = t.id,
                 name = t.name,
+                type = t.type,
                 artist = t.artist,
                 album = t.album,
                 albumArtist = t.albumArtist,
@@ -261,6 +273,7 @@ namespace MCloudServer
                 }
                 if (app.Config.Converters != null) {
                     foreach (var item in app.Config.Converters) {
+                        if (t.type == TrackType.video && item.Type != "video") continue;
                         if (origBitrate / 2 < item.Bitrate) continue;
                         if (t.files?.Any(x => x.ConvName == item.Name) == true) continue;
                         vm.files.Add(new TrackFileVM {
