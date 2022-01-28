@@ -37,8 +37,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:5.0-alpine
 WORKDIR /app
 
 # These are required for transcoding
-RUN apk add --no-cache bash ffmpeg fdk-aac && \
-    apk add --no-cache fdkaac --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+RUN apk add --no-cache bash ffmpeg fdk-aac fdkaac
 
 # Copy the published app
 COPY --from=build-env /app/out .
