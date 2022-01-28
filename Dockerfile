@@ -45,4 +45,7 @@ COPY --from=build-env /app/out .
 # Make the app use "appsettings.docker.json"
 ENV ASPNETCORE_ENVIRONMENT=docker
 
+# https://github.com/dotnet/dotnet-docker/issues/3274
+ENV Logging__Console__FormatterName=
+
 ENTRYPOINT ["dotnet", "MCloudServer.dll"]
