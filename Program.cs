@@ -36,7 +36,7 @@ services.AddDbContext<DbCtx>(options =>
 {
     if (myConfig.DbType == DbType.PostgreSQL)
     {
-        options.UseNpgsql(myConfig.DbStr ?? "Host=localhost;Database=testdb;Username=test;Password=test123");
+        options.UseNpgsql(myConfig.DbStr ?? throw new Exception("DbStr is required for PostgreSQL"));
     }
     else if (myConfig.DbType == DbType.SQLite)
     {
