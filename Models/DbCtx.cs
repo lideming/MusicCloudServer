@@ -88,8 +88,8 @@ namespace MCloudServer
         private static void ApplyListConversion<T>(PropertyBuilder<List<T>> prop) where T : ICloneable
         {
             prop.HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, null),
-                v => string.IsNullOrEmpty(v) ? new List<T>() : JsonSerializer.Deserialize<List<T>>(v, null));
+                v => v == null ? null : JsonSerializer.Serialize(v, null as JsonSerializerOptions),
+                v => string.IsNullOrEmpty(v) ? new List<T>() : JsonSerializer.Deserialize<List<T>>(v, null as JsonSerializerOptions));
             prop.Metadata.SetValueComparer(new ValueComparer<List<T>>(
                 (a, b) => a.SequenceEqual(b),
                 v => v.GetHashCode(),

@@ -4,8 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using COSXML;
-using COSXML.Auth;
 
 namespace MCloudServer
 {
