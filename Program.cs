@@ -66,9 +66,9 @@ using (var scope = app.Services.CreateScope())
     var dbctx = scope.ServiceProvider.GetService<DbCtx>();
     var logger = scope.ServiceProvider.GetService<ILogger<Program>>();
     var appService = scope.ServiceProvider.GetService<AppService>();
-    dbctx.Database.Migrate();
-    AppMigrate(appService, dbctx, logger).Wait();
-    AppCheckFirstRun(appService, dbctx, logger);
+    await dbctx.Database.MigrateAsync();
+    await AppMigrate(appService, dbctx, logger);
+    await AppCheckFirstRun(appService, dbctx, logger);
 }
 
 // Configure middlewares
@@ -244,7 +244,7 @@ async Task AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
     //     val = "4";
     // }
     if (val == null) {
-        val = "4";
+        val = "5";
     }
     if (val == "4") {
         val = "5";
@@ -302,9 +302,9 @@ async Task AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
     dbctx.Database.CommitTransaction();
 }
 
-void AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger logger)
+async Task AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger logger)
 {
-    if (dbctx.Users.Count() == 0) {
+    if (await dbctx.Users.CountAsync() == 0) {
         logger.LogInformation("No user is found, creating the default \"admin\" user.");
         var user = new User{
             username = "admin",
@@ -313,7 +313,7 @@ void AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger logger)
             role = UserRole.SuperAdmin
         };
         dbctx.Users.Add(user);
-        dbctx.SaveChanges();
+        await dbctx.SaveChangesAsync();
         dbctx.Entry(user).State = EntityState.Detached;
     }
 }
