@@ -49,14 +49,15 @@ docker-compose up -d
 
 ### Requirements
 
-* [.NET SDK 5](https://dotnet.microsoft.com/download/dotnet-core/3.1)
+* [.NET SDK 6](https://dotnet.microsoft.com/download/dotnet-core/6.0)
 * [PostgreSQL](https://www.postgresql.org/) (optional)
+* [FFmpeg](https://www.ffmpeg.org/) and [fdkaac](https://github.com/nu774/fdkaac) (optional, for default transcoding configuration)
 
 ### Configure Back-end
 
 Edit file `appsettings.json`.
 
-(Please ensure `staticdir` is configured correctly.)
+(Please ensure `staticdir` is configured correctly. By default it expects frontend files in `../MusicCloud/dist/`)
 
 ### Run
 
@@ -67,3 +68,13 @@ dotnet run
 In the first time, dotnet will automatically `restore` (i.e. download and install) the project dependencies.
 
 After the server started, you can access http://localhost:5000/
+
+## Administration
+
+On the app first run, a "super admin" user is created automatically. (username: "admin", password: "admin")
+
+We don't have an admin UI yet. But the admin user is able to:
+
+- See any tracks and playlists regardless of their visibility settings
+- Delete any comments
+- Upload without file type and size limitations
