@@ -107,7 +107,7 @@ namespace MCloudServer
                 var username = kv[0];
                 var passwd = kv[1];
                 user = await dbctx.FindUser(username);
-                if (user == null || !Utils.ValidatePassword(passwd, user.passwd)) user = null;
+                if (user == null || string.IsNullOrEmpty(user.passwd) || !Utils.ValidatePassword(passwd, user.passwd)) user = null;
             } else if (splits[0] == "Bearer") {
                 var token = splits[1];
                 if (string.IsNullOrEmpty(token)) return default;

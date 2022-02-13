@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace MCloudServer
 {
@@ -25,6 +27,23 @@ namespace MCloudServer
             if (role == UserRole.SuperAdmin) return true;
             return size <= 256 * 1024 * 1024;
         }
+    }
+
+    [Table("userSocialLinks")]
+    [Index("userId")]
+    [Index("provider", "idFromProvider", IsUnique = true)]
+    public class UserSocialLink {
+        [Key]
+        public int id { get; set; }
+
+        public int userId { get; set; }
+        public User user { get; set; }
+
+        public string provider { get; set; }
+        public string accessToken { get; set; }
+        public string refreshToken { get; set; }
+        public string idFromProvider { get; set; }
+        public string nameFromProvider { get; set; }
     }
 
     public class LoginRecord

@@ -10,6 +10,10 @@ using MCloudServer;
 using System.IO;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
+using Microsoft.AspNetCore.Http.Extensions;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 
 namespace MCloudServer.Controllers
 {
@@ -38,6 +42,10 @@ namespace MCloudServer.Controllers
             return await GetUser(user, true);
         }
 
+        class LoginOptions {
+            public string code { get; set; }
+        }
+
         [HttpPost("me/login")]
         public async Task<IActionResult> PostUserLogin()
         {
@@ -51,11 +59,116 @@ namespace MCloudServer.Controllers
             return await GetUser(user, true, token);
         }
 
+        [HttpGet("me/socialLogin")]
+        public async Task<IActionResult> SocialLogin([FromQuery] string provider, [FromQuery] string returnUrl)
+        {
+            if (!_app.Config.SocialLogin.TryGetValue(provider, out var config)) {
+                return BadRequest("Invalid provider");
+            }
+            return Redirect(config.AuthEndpoint + new QueryBuilder() {
+                {"client_id" , config.ClientId},
+                {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
+                {"response_type", "code"},
+                {"scope", "openid profile"},
+                {"state", provider + "|" + returnUrl},
+            }.ToString());
+        }
+        
+        [HttpGet("me/socialLogin-continued")]
+        public async Task<IActionResult> SocialLoginContinued([FromQuery] string code, [FromQuery] string state)
+        {
+            Console.WriteLine("=====> SocialLoginContinued: " + code + " " + state);
+            var parts = state.Split('|', 2);
+            var providerId = parts[0];
+            var returnUrl = parts[1];
+            var provider = _app.Config.SocialLogin[providerId];
+
+            string accessToken, refreshToken, idToken;
+
+            using (var client = new HttpClient()) {
+                var msg = new HttpRequestMessage(HttpMethod.Post, provider.TokenEndpoint) {
+                    Content = new FormUrlEncodedContent(new Dictionary<string, string> {
+                        {"grant_type", "authorization_code"},
+                        {"code", code},
+                        {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
+                    }),
+                };
+                msg.Headers.Authorization  = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(provider.ClientId + ":" + provider.ClientSecret)));
+                var resp = await client.SendAsync(msg);
+                var json = await resp.Content.ReadAsStringAsync();
+                Console.WriteLine("=====> SocialLoginContinued token result: " + json);
+                var parsed = JsonDocument.Parse(json);
+                accessToken = parsed.RootElement.TryGetProperty("access_token", out var jsonat) ? jsonat.GetString() : null;
+                refreshToken = parsed.RootElement.TryGetProperty("refresh_token", out var jsonrt) ? jsonrt.GetString() : null;
+                idToken = parsed.RootElement.TryGetProperty("id_token", out var jsonit) ? jsonit.GetString() : null;
+            }
+            var claims = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(idToken);
+            var providerUserId = claims.Subject;
+            var providerUsername = claims.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value ?? claims.Subject;
+            
+            var link = await _context.SocialLinks.Where(s => s.provider == providerId && s.idFromProvider == providerUserId)
+                            .Include(s => s.user)
+                            .SingleOrDefaultAsync();
+            
+            User user;
+
+            if (link == null) {
+                user = new User() {
+                    username = providerUsername,
+                    role = UserRole.User,
+                    lists = new List<int>(),
+                };
+                _context.Users.Add(user);
+                link = new UserSocialLink() {
+                    accessToken = accessToken,
+                    refreshToken = refreshToken,
+                    user = user,
+                    provider = providerId,
+                    idFromProvider = providerUserId,
+                    nameFromProvider = providerUsername,
+                };
+                _context.SocialLinks.Add(link);
+            } else {
+                user = link.user;
+            }
+
+            
+            var record = _context.UserService.CreateLoginRecord_NoSave(user);
+            var token = record.token;
+
+            await _context.SaveChangesAsync();
+            return Redirect(returnUrl + "#token=" + token);
+        }
+
         [HttpPost("me/logout")]
         public async Task<IActionResult> PostUserLogout()
         {
             await _context.UserService.Logout();
             return Ok();
+        }
+
+        [HttpGet("me/serverconfig")]
+        public IActionResult GetServerConfig() {
+            return new JsonResult(ServerConfig());
+        }
+
+        private object ServerConfig()
+        {
+            return new
+            {
+                storageUrlBase = _app.Config.StorageUrlBase,
+                msg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
+                notesEnabled = _app.Config.NotesEnabled,
+                discussionEnabled = _app.Config.DiscussionEnabled,
+                trackCommentsEnabled = _app.Config.TrackCommentsEnabled,
+                allowRegistration = _app.Config.AllowRegistration,
+                passwordLogin = _app.Config.PasswordLogin,
+                socialLogin = _app.Config.SocialLogin.Select(kv => new {
+                    id = kv.Key,
+                    name = kv.Value.Name,
+                    icon = kv.Value.Icon,
+                }).ToList(),
+            };
         }
 
         private async Task<IActionResult> GetUser(User user, bool me = false, string newToken = null)
@@ -70,11 +183,15 @@ namespace MCloudServer.Controllers
                 .Include(l => l.pic)
                 .Include(l => l.user)
                 .Where(l => l.owner == user.id || (user.lists.Contains(l.id) && l.visibility == Visibility.Public))
-                .Select(l => new TrackListInfoVM {
-                        id = l.id, owner = l.owner, name = l.name, visibility = l.visibility,
-                        picurl = l.pic.path,
-                        ownerName = l.user.username
-                    })
+                .Select(l => new TrackListInfoVM
+                {
+                    id = l.id,
+                    owner = l.owner,
+                    name = l.name,
+                    visibility = l.visibility,
+                    picurl = l.pic.path,
+                    ownerName = l.user.username
+                })
                 .ToListAsync();
 
             // get the order right, remove unreadable items
@@ -96,14 +213,7 @@ namespace MCloudServer.Controllers
                     playing = await GetUserPlaying(user),
                     role = user.role == UserRole.SuperAdmin ? "admin" : "user",
                     token = newToken,
-                    serverOptions = new
-                    {
-                        storageUrlBase = _context.MCloudConfig.StorageUrlBase,
-                        msg = "uptime " + _app.GetUptime().TotalMinutes.ToString("N0") + " minutes",
-                        notesEnabled = _app.Config.NotesEnabled,
-                        discussionEnabled = _app.Config.DiscussionEnabled,
-                        trackCommentsEnabled = _app.Config.TrackCommentsEnabled
-                    }
+                    serverOptions = ServerConfig(),
                 }, new JsonSerializerOptions { IgnoreNullValues = true });
             }
             else
@@ -150,22 +260,26 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPut("me/avatar")]
-        public async Task<IActionResult> PutUserAvatar() {
+        public async Task<IActionResult> PutUserAvatar()
+        {
             var login = await GetLoginUser();
             if (login == null) return GetErrorResult("no_login");
             byte[] pic;
-            using(var ms = new MemoryStream()) {
+            using (var ms = new MemoryStream())
+            {
                 await Request.Body.CopyToAsync(ms);
                 pic = ms.ToArray();
             }
             var internalPath = "storage/pic/" + Guid.NewGuid().ToString("D") + ".avatar.128.jpg";
             var fsPath = _app.ResolveStoragePath(internalPath);
             Directory.CreateDirectory(Path.GetDirectoryName(fsPath));
-            using (var img = Image.Load(pic)) {
+            using (var img = Image.Load(pic))
+            {
                 img.Mutate(p => p.Resize(128, 0));
                 img.SaveAsJpeg(fsPath);
             }
-            login.avatar = new StoredFile {
+            login.avatar = new StoredFile
+            {
                 path = internalPath,
                 size = new FileInfo(fsPath).Length,
             };
@@ -184,8 +298,9 @@ namespace MCloudServer.Controllers
             return Ok();
         }
 
-        public static async Task PostPlaying(DbCtx context, User user, TrackLocationWithProfile playing) {
-            RETRY:
+        public static async Task PostPlaying(DbCtx context, User user, TrackLocationWithProfile playing)
+        {
+        RETRY:
             var track = await context.Tracks.FindAsync(playing.trackid);
             var list = playing.listid > 0 ? await context.Lists.FindAsync(playing.listid) : null;
             if (track?.IsVisibleToUser(user) == true)
@@ -333,8 +448,9 @@ namespace MCloudServer.Controllers
 
             var lastPlayTime = lastplay?.time;
             var lastPlayTrack = lastplay?.Track;
-            
-            if (lastplay?.Track != null && !lastPlayTrack.IsVisibleToUser(login)) {
+
+            if (lastplay?.Track != null && !lastPlayTrack.IsVisibleToUser(login))
+            {
                 lastPlayTrack = null;
             }
 

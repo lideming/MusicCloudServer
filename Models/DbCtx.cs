@@ -23,10 +23,12 @@ namespace MCloudServer
         public MCloudConfig MCloudConfig { get; }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<LoginRecord> Logins { get; set; }
+        public DbSet<UserSocialLink> SocialLinks { get; set; }
+
         public DbSet<TrackList> Lists { get; set; }
         public DbSet<Track> Tracks { get; set; }
         public DbSet<Comment> Comments { get; set; }
-        public DbSet<LoginRecord> Logins { get; set; }
         public DbSet<PlayRecord> Plays { get; set; }
         public DbSet<StoredFile> Files { get; set; }
         public DbSet<TrackFile> TrackFiles { get; set; }

@@ -40,6 +40,12 @@ namespace MCloudServer
 
         public bool TrackCommentsEnabled { get; set; } = true;
 
+        public bool AllowRegistration { get; set; } = true;
+
+        public bool PasswordLogin { get; set; } = true;
+
+        public Dictionary<string, SocialLoginConfig> SocialLogin { get; set; } = new Dictionary<string, SocialLoginConfig>();
+
         public bool TryResolveStoragePath(string prefixedPath, out string fsPath)
         {
             if (TryGetStoragePath(prefixedPath, out fsPath))
@@ -95,5 +101,15 @@ namespace MCloudServer
         SQLite = 0,
         PostgreSQL = 1,
         Pg = 1,
+    }
+
+    public class SocialLoginConfig {
+        public string Name { get; set; }
+        public string Icon { get; set; }
+        public string Type { get; set; }
+        public string AuthEndpoint { get; set; }
+        public string TokenEndpoint { get; set; }
+        public string ClientId { get; set; }
+        public string ClientSecret { get; set; }
     }
 }
