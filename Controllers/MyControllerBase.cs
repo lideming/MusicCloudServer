@@ -53,6 +53,15 @@ namespace MCloudServer.Controllers
                 comments = query.Join(_context.Users, c => c.uid, u => u.id, (c, u) => c.ToVM(u))
             });
         }
+
+        protected async Task<ActionResult> RenderCommentsCount(string tag)
+        {
+            var query = GetCommentsByTag(tag);
+            return new JsonResult(new
+            {
+                count = await query.CountAsync()
+            });
+        }
     }
 
     public class ErrorResult<T> : ErrorResult

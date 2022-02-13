@@ -557,6 +557,19 @@ namespace MCloudServer.Controllers
             return RenderComments("track/" + trackid);
         }
 
+        [HttpGet("{trackid}/comments_count")]
+        public async Task<ActionResult> GetCommentsCount([FromRoute] int trackid, [FromQuery] int begin)
+        {
+            var user = await GetLoginUser();
+            if (user == null) return GetErrorResult("no_login");
+            if (!IsCommentsEnabled(user)) return GetErrorResult("track_comments_disabled");
+
+            var track = await _context.Tracks.FindAsync(trackid);
+            if (track?.IsVisibleToUser(user) != true) return GetErrorResult("track_not_found");
+
+            return await RenderCommentsCount("track/" + trackid);
+        }
+
         [HttpPost("{trackid}/comments/new")]
         public async Task<ActionResult> PostComments([FromRoute] int trackid, [FromBody] CommentVM vm)
         {
