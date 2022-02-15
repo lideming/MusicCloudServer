@@ -15,10 +15,28 @@ namespace MCloudServer
 
         public static string SignTag(string str, byte[] key)
         {
-            using (var hmac = new HMACSHA1(key))
+            using (var hmac = new HMACSHA256(key))
             {
                 return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(str)));
             }
+        }
+
+        public static string SignToken(string[] strs, byte[] key, TimeSpan ttl)
+        {
+            var payload = string.Join("|", strs) + "|" + Math.Floor((DateTime.UtcNow + ttl).Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
+            var sign = SignTag(payload, key);
+            return payload + "|" + sign;
+        }
+
+        public static string[] ExtractToken(string token, byte[] key) {
+            var parts = token.Split('|');
+            if (parts.Length < 3) throw new Exception("Invalid token");
+            var now = Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds);
+            if (now > double.Parse(parts[parts.Length - 2])) throw new Exception("Expired token");
+            var signedParts = parts.Take(parts.Length - 1);
+            var sign = SignTag(string.Join("|", signedParts), key);
+            if (sign != parts[parts.Length - 1]) throw new Exception("Invalid signature: " + parts[parts.Length - 1]);
+            return parts.Take(parts.Length - 2).ToArray();
         }
 
         public static string HashPassword(string passwd)

@@ -29,6 +29,8 @@ namespace MCloudServer
         byte[] signKey;
 
         public string SignTag(string str) => Utils.SignTag(str, signKey);
+        public string SignToken(string[] strs, TimeSpan ttl) => Utils.SignToken(strs, signKey, ttl);
+        public string[] ExtractToken(string token) => Utils.ExtractToken(token, signKey);
 
         public string ResolveStoragePath(string path) => Config.ResolveStoragePath(path);
         public bool TryResolveStoragePath(string path, out string fsPath) => Config.TryResolveStoragePath(path, out fsPath);

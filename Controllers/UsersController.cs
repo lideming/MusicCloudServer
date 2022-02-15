@@ -62,6 +62,10 @@ namespace MCloudServer.Controllers
         [HttpGet("me/socialLogin")]
         public async Task<IActionResult> SocialLogin([FromQuery] string provider, [FromQuery] string returnUrl)
         {
+            return StartSocialLogin(provider, returnUrl, "login");
+        }
+
+        IActionResult StartSocialLogin(string provider, string returnUrl, string state) {
             if (!_app.Config.SocialLogin.TryGetValue(provider, out var config)) {
                 return BadRequest("Invalid provider");
             }
@@ -70,33 +74,36 @@ namespace MCloudServer.Controllers
                 {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
                 {"response_type", "code"},
                 {"scope", "openid profile"},
-                {"state", provider + "|" + returnUrl},
+                {"state", _app.SignToken(new [] { provider, returnUrl, state }, TimeSpan.FromMinutes(30))},
             }.ToString());
         }
-        
+
         [HttpGet("me/socialLogin-continued")]
         public async Task<IActionResult> SocialLoginContinued([FromQuery] string code, [FromQuery] string state)
         {
-            Console.WriteLine("=====> SocialLoginContinued: " + code + " " + state);
-            var parts = state.Split('|', 2);
+            // Parse code and state
+            var parts = _app.ExtractToken(state);
             var providerId = parts[0];
             var returnUrl = parts[1];
+            var innerState = parts[2];
             var provider = _app.Config.SocialLogin[providerId];
 
+            // Get id token and access token from the Token Endpoint
             string accessToken, refreshToken, idToken;
 
-            using (var client = new HttpClient()) {
-                var msg = new HttpRequestMessage(HttpMethod.Post, provider.TokenEndpoint) {
+            using (var client = new HttpClient())
+            {
+                var msg = new HttpRequestMessage(HttpMethod.Post, provider.TokenEndpoint)
+                {
                     Content = new FormUrlEncodedContent(new Dictionary<string, string> {
                         {"grant_type", "authorization_code"},
                         {"code", code},
                         {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
                     }),
                 };
-                msg.Headers.Authorization  = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(provider.ClientId + ":" + provider.ClientSecret)));
+                msg.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(provider.ClientId + ":" + provider.ClientSecret)));
                 var resp = await client.SendAsync(msg);
                 var json = await resp.Content.ReadAsStringAsync();
-                Console.WriteLine("=====> SocialLoginContinued token result: " + json);
                 var parsed = JsonDocument.Parse(json);
                 accessToken = parsed.RootElement.TryGetProperty("access_token", out var jsonat) ? jsonat.GetString() : null;
                 refreshToken = parsed.RootElement.TryGetProperty("refresh_token", out var jsonrt) ? jsonrt.GetString() : null;
@@ -105,11 +112,15 @@ namespace MCloudServer.Controllers
             var claims = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(idToken);
             var providerUserId = claims.Subject;
             var providerUsername = claims.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value ?? claims.Subject;
-            
+
+            return await FinishSocialLogin(providerId, returnUrl, accessToken, refreshToken, providerUserId, providerUsername);
+        }
+
+        private async Task<IActionResult> FinishSocialLogin(string providerId, string returnUrl, string accessToken, string refreshToken, string providerUserId, string providerUsername)
+        {
             var link = await _context.SocialLinks.Where(s => s.provider == providerId && s.idFromProvider == providerUserId)
-                            .Include(s => s.user)
-                            .SingleOrDefaultAsync();
-            
+                        .Include(s => s.user)
+                        .SingleOrDefaultAsync();
             User user;
 
             if (link == null) {
@@ -132,7 +143,7 @@ namespace MCloudServer.Controllers
                 user = link.user;
             }
 
-            
+
             var record = _context.UserService.CreateLoginRecord_NoSave(user);
             var token = record.token;
 
