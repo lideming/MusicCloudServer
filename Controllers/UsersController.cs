@@ -60,22 +60,22 @@ namespace MCloudServer.Controllers
         }
 
         [HttpGet("me/socialLogin")]
-        public async Task<IActionResult> SocialLogin([FromQuery] string provider, [FromQuery] string returnUrl)
+        public IActionResult SocialLogin([FromQuery] string provider, [FromQuery] string returnUrl)
         {
-            return StartSocialLogin(provider, returnUrl, "login");
+            return Redirect(StartSocialLogin(provider, returnUrl, "login"));
         }
 
-        IActionResult StartSocialLogin(string provider, string returnUrl, string state) {
+        string StartSocialLogin(string provider, string returnUrl, string state) {
             if (!_app.Config.SocialLogin.TryGetValue(provider, out var config)) {
-                return BadRequest("Invalid provider");
+                throw new Exception("Invalid provider");
             }
-            return Redirect(config.AuthEndpoint + new QueryBuilder() {
+            return config.AuthEndpoint + new QueryBuilder() {
                 {"client_id" , config.ClientId},
                 {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
                 {"response_type", "code"},
                 {"scope", "openid profile"},
                 {"state", _app.SignToken(new [] { provider, returnUrl, state }, TimeSpan.FromMinutes(30))},
-            }.ToString());
+            }.ToString();
         }
 
         [HttpGet("me/socialLogin-continued")]
@@ -113,23 +113,52 @@ namespace MCloudServer.Controllers
             var providerUserId = claims.Subject;
             var providerUsername = claims.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value ?? claims.Subject;
 
-            return await FinishSocialLogin(providerId, returnUrl, accessToken, refreshToken, providerUserId, providerUsername);
+            return await FinishSocialLogin(providerId, accessToken, refreshToken, providerUserId, providerUsername, returnUrl, innerState);
         }
 
-        private async Task<IActionResult> FinishSocialLogin(string providerId, string returnUrl, string accessToken, string refreshToken, string providerUserId, string providerUsername)
+        private async Task<IActionResult> FinishSocialLogin(
+            string providerId, string accessToken, string refreshToken,
+            string providerUserId, string providerUsername, string returnUrl, string state)
         {
             var link = await _context.SocialLinks.Where(s => s.provider == providerId && s.idFromProvider == providerUserId)
                         .Include(s => s.user)
                         .SingleOrDefaultAsync();
-            User user;
+            if (state == "login") {
+                User user;
 
-            if (link == null) {
-                user = new User() {
-                    username = providerUsername,
-                    role = UserRole.User,
-                    lists = new List<int>(),
-                };
-                _context.Users.Add(user);
+                if (link == null) {
+                    user = new User() {
+                        username = providerUsername,
+                        role = UserRole.User,
+                        lists = new List<int>(),
+                    };
+                    _context.Users.Add(user);
+                    link = new UserSocialLink() {
+                        accessToken = accessToken,
+                        refreshToken = refreshToken,
+                        user = user,
+                        provider = providerId,
+                        idFromProvider = providerUserId,
+                        nameFromProvider = providerUsername,
+                    };
+                    _context.SocialLinks.Add(link);
+                } else {
+                    user = link.user;
+                }
+
+
+                var record = _context.UserService.CreateLoginRecord_NoSave(user);
+                var token = record.token;
+
+                await _context.SaveChangesAsync();
+
+                // TODO: CSRF! Not using return URL
+                return Redirect("/#token=" + token);
+            } else if (state.StartsWith("link.")) {
+                if (link != null) return Redirect(returnUrl + "#social-link-error=already-linked");
+                var targetUserId = int.Parse(state.Split('.')[1]);
+                var user = await _context.Users.Where(u => u.id == targetUserId).SingleOrDefaultAsync();
+                if (user == null) throw new Exception("User not found");
                 link = new UserSocialLink() {
                     accessToken = accessToken,
                     refreshToken = refreshToken,
@@ -139,16 +168,59 @@ namespace MCloudServer.Controllers
                     nameFromProvider = providerUsername,
                 };
                 _context.SocialLinks.Add(link);
-            } else {
-                user = link.user;
+                await _context.SaveChangesAsync();
+                return Redirect(returnUrl + "#social-link-success");
             }
 
+            throw new Exception("Unknown state");
+        }
 
-            var record = _context.UserService.CreateLoginRecord_NoSave(user);
-            var token = record.token;
+        [HttpGet("me/socialLinks")]
+        public async Task<IActionResult> GetSocialLinks() {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            
+            var links = await _context.SocialLinks.Where(s => s.userId == login.id)
+                        .ToListAsync();
 
+            return new JsonResult(new {
+                links = _app.Config.SocialLogin.Select(s => new {
+                    id = s.Key,
+                    name = s.Value.Name,
+                    username = links.Find(l => l.provider == s.Key)?.nameFromProvider,
+                })
+            });
+        }
+
+        [HttpPost("me/socialLinks/{provider}")]
+        public async Task<IActionResult> AddSocialLink([FromRoute] string provider, [FromQuery] string returnUrl) {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            
+            var link = await _context.SocialLinks.Where(s => s.userId == login.id && s.provider == provider)
+                        .SingleOrDefaultAsync();
+
+            if (link != null) return GetErrorResult("link_exists");
+
+            return new JsonResult(new {
+                url = StartSocialLogin(provider, returnUrl, "link." + login.id)
+            });
+        }
+
+        [HttpDelete("me/socialLinks/{provider}")]
+        public async Task<IActionResult> DeleteSocialLink([FromRoute] string provider, [FromQuery] string returnUrl) {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+
+            var link = await _context.SocialLinks.Where(s => s.userId == login.id && s.provider == provider)
+                        .SingleOrDefaultAsync();
+
+            if (link == null) return GetErrorResult("link_not_exists");
+
+            _context.Remove(link);
             await _context.SaveChangesAsync();
-            return Redirect(returnUrl + "#token=" + token);
+
+            return Ok();
         }
 
         [HttpPost("me/logout")]
