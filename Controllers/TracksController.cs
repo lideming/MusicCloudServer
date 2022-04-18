@@ -151,16 +151,8 @@ namespace MCloudServer.Controllers
                 var convObj = _context.MCloudConfig.FindConverter(profile);
                 if (convObj == null) return GetErrorResult("profile_not_found");
 
-                var r = await cs.GetConverted(_context, track, convObj);
+                var r = await cs.GetConverted(track, convObj);
                 file = r.TrackFile;
-                if (!r.AlreadyExisted)
-                {
-                RETRY:
-                    _context.Files.Add(file.File);
-                    _context.TrackFiles.Add(file);
-                    track.files.Add(file);
-                    if (await _context.FailedSavingChanges()) goto RETRY;
-                }
             }
 
             return new JsonResult(new TrackFileVM(file));

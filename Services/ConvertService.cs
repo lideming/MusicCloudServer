@@ -4,33 +4,52 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MCloudServer
 {
     public class ConvertService
     {
         private readonly ILogger<ConvertService> logger;
+        private readonly IServiceProvider serviceProvider;
 
         private readonly ConcurrentDictionary<string, ConvTask> tasks;
         // key: id + "-" + conv_name
 
-        public ConvertService(ILogger<ConvertService> logger)
+        public ConvertService(ILogger<ConvertService> logger, IServiceProvider serviceProvider)
         {
             this.logger = logger;
+            this.serviceProvider = serviceProvider;
             this.tasks = new ConcurrentDictionary<string, ConvTask>();
         }
 
-        public async Task<ConvResult> GetConverted(DbCtx dbctx, Track track, MCloudConfig.Converter conv)
+        public async Task<ConvResult> GetConverted(Track track, MCloudConfig.Converter conv)
         {
             var taskKey = track.id + "-" + conv.Name;
             var task = tasks.GetOrAdd(taskKey, (key) =>
             {
-                return new ConvTask(dbctx, track, conv, logger);
+                return new ConvTask(serviceProvider.GetService<AppService>(), track, conv, logger);
             });
             try
             {
                 logger.LogInformation("'{taskKey}' start convert", taskKey);
                 await task.Run(out var alreadyRunning);
+                if (!alreadyRunning)
+                {
+                    using (var scope = serviceProvider.CreateScope())
+                    {
+                        var dbctx = scope.ServiceProvider.GetService<DbCtx>();
+                        dbctx.Attach(track);
+                    RETRY:
+                        // dbctx.Files.Add(task.TrackFile.File);
+                        // dbctx.TrackFiles.Add(task.TrackFile);
+                        track.files.Add(task.TrackFile);
+                        if (await dbctx.FailedSavingChanges()) {
+                            await dbctx.Entry(track).ReloadAsync();
+                            goto RETRY;
+                        }
+                    }
+                }
                 logger.LogInformation("'{taskKey}' end (already existed = {val})", taskKey, alreadyRunning);
                 return new ConvResult
                 {
@@ -52,7 +71,7 @@ namespace MCloudServer
 
         class ConvTask
         {
-            public DbCtx Dbctx { get; }
+            public AppService App { get; }
             public Track Track { get; }
             public MCloudConfig.Converter Conv { get; }
 
@@ -63,9 +82,9 @@ namespace MCloudServer
             Task runningTask;
             private readonly ILogger<ConvertService> logger;
 
-            public ConvTask(DbCtx dbctx, Track track, MCloudConfig.Converter conv, ILogger<ConvertService> logger)
+            public ConvTask(AppService app, Track track, MCloudConfig.Converter conv, ILogger<ConvertService> logger)
             {
-                Dbctx = dbctx;
+                App = app;
                 Track = track;
                 Conv = conv;
                 this.logger = logger;
@@ -92,12 +111,12 @@ namespace MCloudServer
                 var outputUrl = Track.ConvUrl(Conv.Name);
                 OutputUrl = outputUrl;
 
-                var inputPath = Dbctx.MCloudConfig.ResolveStoragePath(url);
-                var outputPath = Dbctx.MCloudConfig.ResolveStoragePath(outputUrl);
+                var inputPath = App.Config.ResolveStoragePath(url);
+                var outputPath = App.Config.ResolveStoragePath(outputUrl);
 
                 string convCmdline = Conv.GetCommandLine(inputPath, outputPath);
 
-                var debug = Dbctx.MCloudConfig.ConverterDebug;
+                var debug = App.Config.ConverterDebug;
 
                 bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
                 var psi = new ProcessStartInfo(windows ? "cmd.exe" : "bash")
@@ -136,19 +155,20 @@ namespace MCloudServer
                     Bitrate = Conv.Bitrate,
                     ConvName = Conv.Name,
                     Format = Conv.Format,
-                    File = new StoredFile{
+                    File = new StoredFile
+                    {
                         path = outputUrl,
                         size = new FileInfo(outputPath).Length
                     }
                 };
                 TrackFile = trackFile;
 
-                if (Dbctx.App.StorageService.Mode != StorageMode.Direct)
+                if (App.StorageService.Mode != StorageMode.Direct)
                 {
                     logger.LogInformation("'{id}-{conv}' uploading to storage service...", Track.id, Conv.Name);
-                    await Dbctx.App.StorageService.PutFile(new RequestUploadOptions
+                    await App.StorageService.PutFile(new RequestUploadOptions
                     {
-                        DestFilePath = Dbctx.MCloudConfig.GetStoragePath(outputUrl),
+                        DestFilePath = App.Config.GetStoragePath(outputUrl),
                         Length = trackFile.Size
                     }, outputPath);
                 }
