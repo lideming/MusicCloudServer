@@ -375,8 +375,9 @@ namespace MCloudServer.Controllers
             AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
+            var origBitrate = (int)(track.length > 0 ? track.size / track.length / 128 : 0);
             foreach(var conv in _app.Config.Converters) {
-                if (conv.Auto) {
+                if (conv.Auto && conv.Bitrate <= origBitrate / 2) {
                     _app.ConvertService.AddBackgroundConvert(track, conv);
                 }
             }
