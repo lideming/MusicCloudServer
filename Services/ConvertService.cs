@@ -17,7 +17,7 @@ namespace MCloudServer
         private readonly ConcurrentDictionary<string, ConvTask> tasks;
         // key: id + "-" + conv_name
 
-        private readonly Queue<(Track, MCloudConfig.Converter)> queue = new();
+        private readonly Queue<string> queue = new();
 
         public ConvertService(ILogger<ConvertService> logger, IServiceProvider serviceProvider)
         {
@@ -28,64 +28,58 @@ namespace MCloudServer
 
         public void AddBackgroundConvert(Track track, MCloudConfig.Converter conv)
         {
-            lock(queue) {
-                queue.Enqueue((track, conv));
-                if (queue.Count == 1) {
-                    BackgroundConvertRunner(queue.Dequeue());
+            var task = GetConvTask(track, conv);
+            lock (queue)
+            {
+                queue.Enqueue(task.Name);
+                if (queue.Count == 1)
+                {
+                    BackgroundConvertRunner(queue.Peek());
                 }
             }
         }
 
-        public async void BackgroundConvertRunner((Track, MCloudConfig.Converter) current) {
-            while(true) {
+        public async void BackgroundConvertRunner(string current)
+        {
+            while (true)
+            {
                 try
                 {
-                    await GetConverted(current.Item1, current.Item2);
+                    if (tasks.TryGetValue(current, out var task))
+                    {
+                        await task.Run();
+                    }
                 }
                 catch (System.Exception e)
                 {
                     logger.LogError(e, "Background converting error");
                 }
+                finally
+                {
+                    tasks.TryRemove(current, out _);
+                }
 
-                lock(queue) {
+                lock (queue)
+                {
+                    queue.Dequeue();
                     logger.LogInformation("Background converting queue count: {count}", queue.Count);
-                    if (queue.Count == 0) {
+                    if (queue.Count == 0)
+                    {
                         break;
                     }
-                    current = queue.Dequeue();
+                    current = queue.Peek();
                 }
             }
         }
 
         public async Task<ConvResult> GetConverted(Track track, MCloudConfig.Converter conv)
         {
-            var taskKey = track.id + "-" + conv.Name;
-            var task = tasks.GetOrAdd(taskKey, (key) =>
-            {
-                return new ConvTask(serviceProvider.GetService<AppService>(), track, conv, logger);
-            });
+            var task = GetConvTask(track, conv);
             try
             {
-                logger.LogInformation("'{taskKey}' start convert", taskKey);
+                logger.LogInformation("'{taskKey}' start convert", task.Name);
                 await task.Run(out var alreadyRunning);
-                if (!alreadyRunning)
-                {
-                    using (var scope = serviceProvider.CreateScope())
-                    {
-                        var dbctx = scope.ServiceProvider.GetService<DbCtx>();
-                        dbctx.Attach(track);
-                    RETRY:
-                        // dbctx.Files.Add(task.TrackFile.File);
-                        // dbctx.TrackFiles.Add(task.TrackFile);
-                        track.files.Add(task.TrackFile);
-                        if (await dbctx.FailedSavingChanges())
-                        {
-                            await dbctx.Entry(track).ReloadAsync();
-                            goto RETRY;
-                        }
-                    }
-                }
-                logger.LogInformation("'{taskKey}' end (already existed = {val})", taskKey, alreadyRunning);
+                logger.LogInformation("'{taskKey}' end (already existed = {val})", task.Name, alreadyRunning);
                 return new ConvResult
                 {
                     TrackFile = task.TrackFile,
@@ -94,8 +88,18 @@ namespace MCloudServer
             }
             finally
             {
-                tasks.TryRemove(taskKey, out _);
+                tasks.TryRemove(task.Name, out _);
             }
+        }
+
+        private ConvTask GetConvTask(Track track, MCloudConfig.Converter conv)
+        {
+            var taskKey = track.id + "-" + conv.Name;
+            var task = tasks.GetOrAdd(taskKey, (key) =>
+            {
+                return new ConvTask(this, track, conv, taskKey);
+            });
+            return task;
         }
 
         public struct ConvResult
@@ -106,23 +110,30 @@ namespace MCloudServer
 
         class ConvTask
         {
-            public AppService App { get; }
+
+            public string Name { get; }
             public Track Track { get; }
             public MCloudConfig.Converter Conv { get; }
 
+            private readonly ConvertService service;
+            private readonly AppService app;
+            private readonly ILogger<ConvertService> logger;
+            private readonly IServiceProvider serviceProvider;
 
             public TrackFile TrackFile { private set; get; }
             public string OutputUrl { private set; get; }
 
             Task runningTask;
-            private readonly ILogger<ConvertService> logger;
 
-            public ConvTask(AppService app, Track track, MCloudConfig.Converter conv, ILogger<ConvertService> logger)
+            public ConvTask(ConvertService service, Track track, MCloudConfig.Converter conv, string name)
             {
-                App = app;
+                this.service = service;
+                this.serviceProvider = service.serviceProvider;
+                this.logger = service.logger;
+                this.app = service.serviceProvider.GetService<AppService>();
                 Track = track;
                 Conv = conv;
-                this.logger = logger;
+                Name = name;
             }
 
             public Task Run() => Run(out _);
@@ -140,18 +151,18 @@ namespace MCloudServer
                 }
             }
 
-            public async Task RunCore()
+            private async Task RunCore()
             {
                 var url = Track.url;
                 var outputUrl = Track.ConvUrl(Conv.Name);
                 OutputUrl = outputUrl;
 
-                var inputPath = App.Config.ResolveStoragePath(url);
-                var outputPath = App.Config.ResolveStoragePath(outputUrl);
+                var inputPath = app.Config.ResolveStoragePath(url);
+                var outputPath = app.Config.ResolveStoragePath(outputUrl);
 
                 string convCmdline = Conv.GetCommandLine(inputPath, outputPath);
 
-                var debug = App.Config.ConverterDebug;
+                var debug = app.Config.ConverterDebug;
 
                 bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
                 var psi = new ProcessStartInfo(windows ? "cmd.exe" : "bash")
@@ -198,14 +209,29 @@ namespace MCloudServer
                 };
                 TrackFile = trackFile;
 
-                if (App.StorageService.Mode != StorageMode.Direct)
+                if (app.StorageService.Mode != StorageMode.Direct)
                 {
                     logger.LogInformation("'{id}-{conv}' uploading to storage service...", Track.id, Conv.Name);
-                    await App.StorageService.PutFile(new RequestUploadOptions
+                    await app.StorageService.PutFile(new RequestUploadOptions
                     {
-                        DestFilePath = App.Config.GetStoragePath(outputUrl),
+                        DestFilePath = app.Config.GetStoragePath(outputUrl),
                         Length = trackFile.Size
                     }, outputPath);
+                }
+
+                using (var scope = serviceProvider.CreateScope())
+                {
+                    var dbctx = scope.ServiceProvider.GetService<DbCtx>();
+                    dbctx.Attach(Track);
+                RETRY:
+                    // dbctx.Files.Add(task.TrackFile.File);
+                    // dbctx.TrackFiles.Add(task.TrackFile);
+                    Track.files.Add(TrackFile);
+                    if (await dbctx.FailedSavingChanges())
+                    {
+                        await dbctx.Entry(Track).ReloadAsync();
+                        goto RETRY;
+                    }
                 }
             }
         }
