@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 
 namespace MCloudServer
 {
@@ -16,11 +17,44 @@ namespace MCloudServer
         private readonly ConcurrentDictionary<string, ConvTask> tasks;
         // key: id + "-" + conv_name
 
+        private readonly Queue<(Track, MCloudConfig.Converter)> queue = new();
+
         public ConvertService(ILogger<ConvertService> logger, IServiceProvider serviceProvider)
         {
             this.logger = logger;
             this.serviceProvider = serviceProvider;
             this.tasks = new ConcurrentDictionary<string, ConvTask>();
+        }
+
+        public void AddBackgroundConvert(Track track, MCloudConfig.Converter conv)
+        {
+            lock(queue) {
+                queue.Enqueue((track, conv));
+                if (queue.Count == 1) {
+                    BackgroundConvertRunner(queue.Dequeue());
+                }
+            }
+        }
+
+        public async void BackgroundConvertRunner((Track, MCloudConfig.Converter) current) {
+            while(true) {
+                try
+                {
+                    await GetConverted(current.Item1, current.Item2);
+                }
+                catch (System.Exception e)
+                {
+                    logger.LogError(e, "Background converting error");
+                }
+
+                lock(queue) {
+                    logger.LogInformation("Background converting queue count: {count}", queue.Count);
+                    if (queue.Count == 0) {
+                        break;
+                    }
+                    current = queue.Dequeue();
+                }
+            }
         }
 
         public async Task<ConvResult> GetConverted(Track track, MCloudConfig.Converter conv)
@@ -44,7 +78,8 @@ namespace MCloudServer
                         // dbctx.Files.Add(task.TrackFile.File);
                         // dbctx.TrackFiles.Add(task.TrackFile);
                         track.files.Add(task.TrackFile);
-                        if (await dbctx.FailedSavingChanges()) {
+                        if (await dbctx.FailedSavingChanges())
+                        {
                             await dbctx.Entry(track).ReloadAsync();
                             goto RETRY;
                         }

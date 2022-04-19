@@ -375,6 +375,12 @@ namespace MCloudServer.Controllers
             AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
 
+            foreach(var conv in _app.Config.Converters) {
+                if (conv.Auto) {
+                    _app.ConvertService.AddBackgroundConvert(track, conv);
+                }
+            }
+
             return new JsonResult(TrackVM.FromTrack(track, _app, false)) { StatusCode = 201 };
         }
 

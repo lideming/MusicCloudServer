@@ -90,6 +90,7 @@ namespace MCloudServer
             public int Bitrate { get; set; }
             public string CommandLine { get; set; }
             public string Type { get; set; }
+            public bool Auto { get; set; }
 
             public string GetCommandLine(string inputFile, string outputFile)
                 => string.Format(CommandLine, inputFile, outputFile);
