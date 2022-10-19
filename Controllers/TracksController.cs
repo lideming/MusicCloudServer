@@ -116,10 +116,11 @@ namespace MCloudServer.Controllers
             var uid = user?.id ?? 0;
             //if (user == null) return GetErrorResult("no_login");
 
-            var result = _context.Tracks.Where(t =>
-                t.groupId == id &&
-                (t.owner == uid || t.visibility == Visibility.Public) // visible by user)
-            );
+            var result = Track.Includes(
+                _context.Tracks.Where(t =>
+                    t.groupId == id &&
+                    (t.owner == uid || t.visibility == Visibility.Public) // visible by user)
+            ));
 
             return new JsonResult(new
             {
