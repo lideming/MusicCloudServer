@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Web;
 
 namespace MCloudServer.Controllers
 {
@@ -582,6 +583,95 @@ namespace MCloudServer.Controllers
                 .ToList();
 
             return new JsonResult(new { tracks });
+        }
+
+        [HttpGet("{userIdOrName}/store/{key}")]
+        public async Task<ActionResult> GetUserStoreKey([FromRoute] string userIdOrName, [FromRoute] string key) {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            var user = await _context.GetUserFromIdOrName(userIdOrName);
+            if (user == null) return NotFound();
+
+            var item = await _context.UserStore
+                .Where(k => k.userId == user.id && k.key == key)
+                .SingleOrDefaultAsync();
+
+            if (item == null
+                || (item.visibility == Visibility.Private && item.userId != login.id))
+                return NotFound();
+            
+            var fieldsString = new QueryString()
+                .Add("visibility", ((int)(item.visibility)).ToString())
+                .Add("revision", item.revision.ToString())
+                .ToString().Substring(1);
+            
+            Response.Headers.Add("x-mcloud-store-fields", fieldsString);
+            return new FileStreamResult(new MemoryStream(item.value), "application/octet-stream");
+        }
+
+        [HttpPut("{userIdOrName}/store/{key}")]
+        public async Task<ActionResult> PutUserStoreKey([FromRoute] string userIdOrName, [FromRoute] string key) {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            var user = await _context.GetUserFromIdOrName(userIdOrName);
+            if (user?.id != login.id) return GetErrorResult("no_permission");
+
+            if (Request.ContentLength == null) return GetErrorResult("content_length_required");
+            if (Request.ContentLength > 64 * 1024) return GetErrorResult("body_too_large");
+
+            var fields = Request.Headers["x-mcloud-store-fields"].SingleOrDefault();
+            var parsedFields = HttpUtility.ParseQueryString(fields ?? "");
+            var visibility = Utils.ParseIntNullable(parsedFields["visibility"]);
+            var revision = Utils.ParseIntNullable(parsedFields["revision"]);
+            var value = await Utils.ReadAllAsBytes(Request.Body);
+
+            var oldItem = await _context.UserStore
+                .Where(k => k.userId == user.id && k.key == key)
+                .SingleOrDefaultAsync();
+
+            if (oldItem != null && revision != null && revision != oldItem.revision) {
+                return GetErrorResult("concurrency_error");
+            }
+
+            RETRY:
+            if (oldItem == null) {
+                oldItem = new UserStoreItem() {
+                    userId = user.id,
+                    key = key,
+                    visibility = 0,
+                    revision = 0,
+                };
+                _context.Add(oldItem);
+            }
+            oldItem.value = value;
+            if (visibility != null) oldItem.visibility = (Visibility)visibility.Value;
+            oldItem.revision += 1;
+
+            if (await _context.FailedSavingChanges()) {
+                if (revision != null) return GetErrorResult("concurrency_error");
+                goto RETRY;
+            }
+
+            return Ok();
+        }
+
+        [HttpDelete("{userIdOrName}/store/{key}")]
+        public async Task<ActionResult> DeleteUserStoreKey([FromRoute] string userIdOrName, [FromRoute] string key) {
+            var login = await GetLoginUser();
+            if (login == null) return GetErrorResult("no_login");
+            var user = await _context.GetUserFromIdOrName(userIdOrName);
+            if (user?.id != login.id) return GetErrorResult("no_permission");
+
+            var oldItem = await _context.UserStore
+                .Where(k => k.userId == user.id && k.key == key)
+                .SingleOrDefaultAsync();
+
+            if (oldItem != null) {
+                _context.UserStore.Remove(oldItem);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
         }
 
         bool IsNotesEnabled() => _app.Config.NotesEnabled || _context.User.role == UserRole.SuperAdmin;

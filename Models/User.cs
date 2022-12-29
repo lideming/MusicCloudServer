@@ -57,6 +57,20 @@ namespace MCloudServer
         public User User { get; set; }
     }
 
+    public class UserStoreItem
+    {
+        // Composite key:
+        public int userId { get; set; }
+        public string key { get; set; }
+
+        public byte[] value { get; set; }
+
+        public Visibility visibility { get; set; }
+
+        [ConcurrencyCheck]
+        public int revision { get; set; }
+    }
+
     public enum UserRole
     {
         User = 1,

@@ -1,8 +1,12 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+
+#nullable enable
 
 namespace MCloudServer
 {
@@ -54,5 +58,20 @@ namespace MCloudServer
             var saltedPasswd = KeyDerivation.Pbkdf2(passwd, salt, KeyDerivationPrf.HMACSHA1, 1000, 128 / 8);
             return Convert.FromBase64String(splits[0]).SequenceEqual(saltedPasswd);
         }
+
+        public static int? ParseIntNullable(string? str)
+        {
+            if (str == null) return null;
+            return int.Parse(str);
+        }
+
+        public static async Task<byte[]> ReadAllAsBytes(Stream stream) {
+            using (var ms = new MemoryStream()) {
+                await stream.CopyToAsync(ms);
+                return ms.ToArray();
+            }
+        }
     }
 }
+
+#nullable restore

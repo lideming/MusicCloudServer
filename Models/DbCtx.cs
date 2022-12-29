@@ -25,6 +25,7 @@ namespace MCloudServer
         public DbSet<User> Users { get; set; }
         public DbSet<LoginRecord> Logins { get; set; }
         public DbSet<UserSocialLink> SocialLinks { get; set; }
+        public DbSet<UserStoreItem> UserStore { get; set; }
 
         public DbSet<TrackList> Lists { get; set; }
         public DbSet<Track> Tracks { get; set; }
@@ -54,6 +55,9 @@ namespace MCloudServer
 
             modelBuilder.Entity<ConfigItem>().ToTable("config");
             modelBuilder.Entity<LoginRecord>().ToTable("logins");
+
+            modelBuilder.Entity<UserStoreItem>().ToTable("userStore")
+                .HasKey(k => new { k.userId, k.key });
 
             modelBuilder.Entity<PlayRecord>().ToTable("plays");
             modelBuilder.Entity<PlayRecord>().HasIndex(p => p.uid);
