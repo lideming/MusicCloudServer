@@ -629,7 +629,9 @@ namespace MCloudServer.Controllers
                 .Where(k => k.userId == user.id && k.key == key)
                 .SingleOrDefaultAsync();
 
-            if (oldItem != null && revision != null && revision != oldItem.revision) {
+            var oldRevision = oldItem == null ? 0 : oldItem.revision;
+
+            if (revision != null && revision != oldRevision) {
                 return GetErrorResult("concurrency_error");
             }
 
