@@ -1,5 +1,5 @@
 #==> Build web app
-FROM node:alpine AS build-webapp-env
+FROM node:20-alpine AS build-webapp-env
 WORKDIR /app
 
 # Git is required to generate the build info.
