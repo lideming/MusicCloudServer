@@ -16,6 +16,10 @@ using Microsoft.Extensions.Logging;
 using SimplePasscode;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    kestrel.AddServerHeader = false;
+});
 
 var myConfig = builder.Configuration.Get<MCloudConfig>();
 
@@ -72,6 +76,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure middlewares
+app.Use((ctx, next) => {
+    ctx.Response.Headers.Add("Server", "MusicCloudServer");
+    return next();
+});
 app.UseForwardedHeaders();
 
 if (env.IsDevelopment())
