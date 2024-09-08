@@ -367,6 +367,7 @@ namespace MCloudServer.Controllers
                 path = internalPath,
                 size = new FileInfo(fsPath).Length,
             };
+            await _app.FileService.FillHash(login.avatar);
             await _context.SaveChangesAsync();
             return Ok();
         }

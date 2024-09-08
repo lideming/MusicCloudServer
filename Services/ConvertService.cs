@@ -207,6 +207,7 @@ namespace MCloudServer
                         size = new FileInfo(outputPath).Length
                     }
                 };
+                await app.FileService.FillHash(trackFile.File);
                 TrackFile = trackFile;
 
                 if (app.StorageService.Mode != StorageMode.Direct)

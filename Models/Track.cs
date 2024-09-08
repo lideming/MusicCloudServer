@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using SixLabors.ImageSharp;
@@ -151,19 +152,19 @@ namespace MCloudServer
             }
         }
 
-        public void ReadPicutreFromTrackFile(AppService app)
+        public async Task ReadPicutreFromTrackFile(AppService app)
         {
             if (GetCachedFileInfo(app, out var info))
             {
                 if (info.EmbeddedPictures.Count > 0)
                 {
                     var picData = info.EmbeddedPictures[0].PictureData;
-                    SetPicture(app, picData);
+                    await SetPicture(app, picData);
                 }
             }
         }
 
-        public void SetPicture(AppService app, byte[] picData)
+        public async Task SetPicture(AppService app, byte[] picData)
         {
             // Not using MemoryStream for picData because we have to load it into the memory anyway.
             var path = "storage/pic/" + Guid.NewGuid().ToString("D") + ".jpg";
@@ -182,11 +183,13 @@ namespace MCloudServer
                 path = pathSmall,
                 size = new FileInfo(fsPathSmall).Length
             };
+            await app.FileService.FillHash(this.thumbPictureFile);
             this.pictureFile = new StoredFile
             {
                 path = path,
                 size = picData.Length
             };
+            await app.FileService.FillHash(this.pictureFile);
         }
 
         public static IIncludableQueryable<Track, StoredFile> Includes(IQueryable<Track> tracks) {

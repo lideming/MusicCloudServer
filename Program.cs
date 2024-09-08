@@ -1,16 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using MCloudServer;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,8 +14,6 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SimplePasscode;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,13 +49,12 @@ services.AddScoped<UserService>();
 services.AddAuthentication("UserAuth")
     .AddScheme<AuthenticationSchemeOptions, UserService.AuthHandler>("UserAuth", null);
 services.AddSingleton<StorageService>(new LocalStorageService());
+services.AddSingleton<FileService>();
 services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 });
-
-
 
 var app  = builder.Build();
 var env = app.Environment;
@@ -72,8 +65,9 @@ using (var scope = app.Services.CreateScope())
     var dbctx = scope.ServiceProvider.GetService<DbCtx>();
     var logger = scope.ServiceProvider.GetService<ILogger<Program>>();
     var appService = scope.ServiceProvider.GetService<AppService>();
+    var fileService = scope.ServiceProvider.GetService<FileService>();
     await dbctx.Database.MigrateAsync();
-    await AppMigrate(appService, dbctx, logger);
+    await MigrationService.AppMigrate(appService, dbctx, logger, fileService);
     await AppCheckFirstRun(appService, dbctx, logger);
 }
 
@@ -174,139 +168,6 @@ app.UseEndpoints(endpoints =>
 });
 
 app.Run();
-
-
-
-async Task AppMigrate(AppService appService, DbCtx dbctx, ILogger logger)
-{
-    dbctx.Database.BeginTransaction();
-    var val = await dbctx.GetConfig("appver");
-    var origVal = val;
-    // if (val == null)
-    // {
-    //     val = "1";
-    // }
-    // if (val == "1")
-    // {
-    //     int count = 0;
-    //     foreach (var item in dbctx.Tracks.AsNoTracking())
-    //     {
-    //         try
-    //         {
-    //             if (item.TryGetStoragePath(appService, out var path))
-    //             {
-    //                 item.size = (int)new FileInfo(path).Length;
-    //                 dbctx.Entry(item).State = EntityState.Modified;
-    //                 if (++count % 100 == 0) await dbctx.SaveChangesAsync();
-    //             }
-    //         }
-    //         catch (System.Exception ex)
-    //         {
-    //             logger.LogWarning(ex, "getting file length from track id {id}", item.id);
-    //         }
-    //     }
-    //     await dbctx.SaveChangesAsync();
-    //     logger.LogInformation("saved file length for {count} files", count);
-    //     val = "2";
-    // }
-    // if (val == "2") {
-    //     await dbctx.Database.ExecuteSqlRawAsync("UPDATE tracks SET album = \"\", albumArtist = \"\", groupId = id;");
-    //     val = "3";
-    // }
-    // if (val == "3") {
-    //     int count = 0;
-    //     foreach (var track in dbctx.Tracks.Include(t => t.fileRecord))
-    //     {
-    //         track.fileRecord = new StoredFile {
-    //             path = track.url,
-    //             size = track.size
-    //         };
-    //         if (track.files != null)
-    //             track.trackFiles = track.files.Select(x => {
-    //                 var cloned = x.Clone();
-    //                 cloned.Track = track;
-    //                 cloned.File = new StoredFile {
-    //                     path = track.url + "." + cloned.ConvName,
-    //                     size = cloned.Size
-    //                 };
-    //                 return cloned;
-    //             }).ToList();
-    //         else
-    //             track.trackFiles = new List<TrackFile>();
-    //         track.trackFiles.Insert(0, new TrackFile{
-    //             Track = track,
-    //             ConvName = "",
-    //             Bitrate = track.length == 0 ? 0 : (int)(track.fileRecord.size * 8 / track.length / 1024),
-    //             File = track.fileRecord,
-    //             Format = track.fileRecord.path.Substring(track.fileRecord.path.LastIndexOf('.') + 1)
-    //         });
-    //         dbctx.TrackFiles.AddRange(track.trackFiles);
-    //         dbctx.Files.AddRange(track.trackFiles.Select(t => t.File));
-    //         dbctx.Entry(track).State = EntityState.Modified;
-    //         if (++count % 100 == 0) await dbctx.SaveChangesAsync();
-    //     }
-    //     await dbctx.SaveChangesAsync();
-    //     logger.LogInformation("updated StoredFile for {count} tracks", count);
-    //     val = "4";
-    // }
-    if (val == null) {
-        val = "5";
-    }
-    if (val == "4") {
-        val = "5";
-        logger.LogInformation("Migration v5: creating thumbnail pictures...");
-        var count = 0;
-        var tracksWithPic = dbctx.Tracks
-            .Include(t => t.pictureFile)
-            .Where(t => t.pictureFileId != null);
-        foreach (var track in tracksWithPic) {
-            var pathSmall = track.pictureFile.path + ".128.jpg";
-            var fsPathSmall = appService.ResolveStoragePath(pathSmall);
-            using (var origPic = Image.Load(appService.ResolveStoragePath(track.pictureFile.path))) {
-                origPic.Mutate(p => p.Resize(128, 0));
-                origPic.SaveAsJpeg(fsPathSmall);
-            }
-            track.thumbPictureFile = new StoredFile {
-                path = pathSmall,
-                size = new FileInfo(fsPathSmall).Length
-            };
-            if (++count % 100 == 0) {
-                logger.LogInformation("Created {count} thumbnail pictures.", count);
-                await dbctx.SaveChangesAsync();
-            }
-        }
-        logger.LogInformation("Created {count} thumbnail pictures.", count);
-        await dbctx.SaveChangesAsync();
-        logger.LogInformation("Migration v5: update list picId for thumbnails...");
-        count = 0;
-        foreach (var list in dbctx.Lists)
-        {
-            var firstId = list.trackids.FirstOrDefault();
-            if (firstId != 0) {
-                list.picId = (await dbctx.Tracks
-                    .Where(t => t.id == firstId && (t.owner == list.owner || t.visibility == Visibility.Public))
-                    .FirstOrDefaultAsync()
-                )?.thumbPictureFileId;
-            }
-            if (++count % 100 == 0) {
-                logger.LogInformation("Updated {count} lists for pic.", count);
-                await dbctx.SaveChangesAsync();
-            }
-        }
-        logger.LogInformation("Updated {count} lists for pic.", count);
-        await dbctx.SaveChangesAsync();
-        logger.LogInformation("Migration v5: done.");
-    }
-    if (val != "5") {
-        throw new Exception($"Unsupported appver \"{val}\"");
-    }
-    if (val != origVal)
-    {
-        logger.LogInformation("appver changed from {orig} to {val}", origVal, val);
-        await dbctx.SetConfig("appver", val);
-    }
-    dbctx.Database.CommitTransaction();
-}
 
 async Task AppCheckFirstRun(AppService appService, DbCtx dbctx, ILogger logger)
 {

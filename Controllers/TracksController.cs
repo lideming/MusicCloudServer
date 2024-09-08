@@ -77,7 +77,7 @@ namespace MCloudServer.Controllers
             }
             var track = await _context.GetTrack(id);
             if (track?.IsWritableByUser(login) != true) return GetErrorResult("track_not_found");
-            track.SetPicture(_app, pic);
+            await track.SetPicture(_app, pic);
             await _context.SaveChangesAsync();
             return new JsonResult(TrackVM.FromTrack(track, _app, true));
         }
@@ -296,7 +296,7 @@ namespace MCloudServer.Controllers
 
         [HttpPost("newfile")]
         [RequestSizeLimit(1024 * 1024 * 1024)]
-        public async Task<ActionResult> PostNewFile()
+        public async Task<ActionResult> PostNewFile([FromServices] FileService fileService)
         {
             if (Request.ContentType != "application/x-mcloud-upload")
                 return GetErrorResult("bad_content_type");
@@ -339,39 +339,12 @@ namespace MCloudServer.Controllers
             if (fileLength < 0 || !user.AllowFileUploadSize(fileLength))
                 return GetErrorResult("file_len_out_of_range");
 
-            // Read the stream into a temp file
-            var tmpdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks-inprogress");
-            Directory.CreateDirectory(tmpdir);
-
-            var filename = Guid.NewGuid().ToString("D") + "." + extName;
-            var tmpfile = Path.Combine(tmpdir, filename);
-
-            try
-            {
-                using (var fs = System.IO.File.Create(tmpfile))
-                {
-                    await stream.CopyToAsync(fs, 64 * 1024);
-                }
-            }
-            catch (Exception)
-            {
-                System.IO.File.Delete(tmpfile);
-                throw;
-            }
-
-            // Move the temp file to storage "tracks" directory
-            var tracksdir = Path.Combine(_context.MCloudConfig.StorageDir, "tracks");
-            Directory.CreateDirectory(tracksdir);
-
-            System.IO.File.Move(tmpfile, Path.Combine(tracksdir, filename));
+            var storedFile = await fileService.SaveFile("storage/tracks/{0}." + extName, stream, fileLength);
 
             // Fill the track info, and complete.
             track.owner = user.id;
             track.type = trackType;
-            track.fileRecord = new StoredFile {
-                path = "storage/tracks/" + filename,
-                size = fileLength
-            };
+            track.fileRecord = storedFile;
             await ReadTrackFileInfo(track);
             AddTrackWithFile(track, extName);
             await _context.SaveChangesAsync();
