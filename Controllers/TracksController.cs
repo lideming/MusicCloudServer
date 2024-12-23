@@ -177,16 +177,18 @@ namespace MCloudServer.Controllers
                     });
                     var pcm = proc.StandardOutput.BaseStream;
                     var buffer = new byte[64 * 1024];
+                    var haveRead = 0;
                     while(true) {
-                        var read = await pcm.ReadAsync(buffer, 0, buffer.Length);
+                        var read = await pcm.ReadAsync(buffer.AsMemory(haveRead));
                         if (read == 0) break;
-                        if (read < 256) continue;
+                        haveRead += read;
+                        if (haveRead < 256) continue;
                         int sum = 0;
-                        for (var i = 0; i < read; i += 256) {
+                        for (var i = 0; i < haveRead; i += 256) {
                             var x = (sbyte)buffer[i];
                             sum += x * x;
                         }
-                        int count = read / 256;
+                        int count = haveRead / 256;
                         var rms = Math.Sqrt(sum / count);
                         ms.WriteByte((byte)rms);
                     }
