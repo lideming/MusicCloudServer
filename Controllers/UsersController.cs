@@ -655,6 +655,12 @@ namespace MCloudServer.Controllers
                 goto RETRY;
             }
 
+            _message.TriggerEvent(
+                "store-changed-" + key,
+                c => c.User.id == user.id,
+                new { key, value = Convert.ToBase64String(value), oldItem.revision }
+            );
+
             return Ok();
         }
 
