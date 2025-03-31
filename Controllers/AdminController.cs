@@ -117,19 +117,13 @@ namespace MCloudServer.Controllers
                     sb.Append("except: ").Append(string.Join(" ", listFail));
                 } else if (arg == "rebuild_loudness") {
                     result = "ok";
-                    var listFail = new List<int>();
-                    var block = new ActionBlock<Track>(async (t) => {
+                    var block = new TransformBlock<Track, (int, TrackAudioInfo)>(async (t) => {
                         try {
                             var info = await _context.App.ConvertService.ComputeLoudnessMap(t);
-                            var oldInfo = await _context.TrackAudioInfos.AsNoTracking().Where(x => x.Id == t.id).FirstOrDefaultAsync();
-                            if (oldInfo == null) {
-                                _context.TrackAudioInfos.Add(info);
-                            } else {
-                                _context.TrackAudioInfos.Update(info);
-                            }
-                            await _context.SaveChangesAsync();
-                        } catch (Exception) {
-                            listFail.Add(t.id);
+                            return (t.id, info);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                            return (t.id, null);
                         }
                     }, new ExecutionDataflowBlockOptions{ MaxDegreeOfParallelism = Environment.ProcessorCount / 2 });
                     await _context.Tracks
@@ -137,9 +131,27 @@ namespace MCloudServer.Controllers
                         .ForEachAsync((t) => {
                             block.Post(t);
                         });
+                    var listFail = new List<int>();
                     block.Complete();
-                    await block.Completion;
-                    sb.Append("failed id list: ").Append(string.Join(" ", listFail));
+                    await foreach (var (id, info) in block.ReceiveAllAsync()) {
+                        if (info == null) {
+                            listFail.Add(id);
+                            continue;
+                        }
+                        try {
+                            var oldInfo = await _context.TrackAudioInfos.AsNoTracking().Where(x => x.Id == id).FirstOrDefaultAsync();
+                            if (oldInfo == null) {
+                                _context.TrackAudioInfos.Add(info);
+                            } else {
+                                _context.TrackAudioInfos.Update(info);
+                            }
+                            await _context.SaveChangesAsync();
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                            listFail.Add(id);
+                        }
+                    }
+                    await _context.SaveChangesAsync();
                 }
             } catch (Exception ex) {
                 result = "error";

@@ -257,9 +257,15 @@ namespace MCloudServer
                     } while (haveRead < 4 * 1024);
                     if (haveRead == 0) break;
                     double sum = 0;
-                    for (var i = 0; i < haveRead; i++) {
-                        var x = (sbyte)buffer[i];
-                        sum += x * x;
+                    for (var i = 0; i + 3 < haveRead; i += 4) {
+                        var x0 = (sbyte)buffer[i + 0];
+                        var x1 = (sbyte)buffer[i + 1];
+                        var x2 = (sbyte)buffer[i + 2];
+                        var x3 = (sbyte)buffer[i + 3];
+                        sum += x0 * x0;
+                        sum += x1 * x1;
+                        sum += x2 * x2;
+                        sum += x3 * x3;
                     }
                     var rms = Math.Sqrt(sum / haveRead);
                     ms.WriteByte((byte)rms);
