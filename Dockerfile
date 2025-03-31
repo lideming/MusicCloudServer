@@ -27,7 +27,7 @@ RUN dotnet restore
 
 COPY . ./
 RUN dotnet publish -c Release -o out --no-self-contained \
-        -r alpine-$([ "$(uname -m)" == aarch64 ] && echo arm64 || echo x64 )
+        -r linux-musl-$([ "$(uname -m)" == aarch64 ] && echo arm64 || echo x64 )
 
 COPY --from=build-webapp-env /app/dist/ /app/out/webapp/
 
