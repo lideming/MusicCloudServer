@@ -165,9 +165,7 @@ namespace MCloudServer
         {
             private readonly UserService userService;
 
-            public AuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options,
-                    ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, UserService userService)
-                : base(options, logger, encoder, clock)
+            public AuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, UserService userService) : base(options, logger, encoder, clock)
             {
                 this.userService = userService;
             }

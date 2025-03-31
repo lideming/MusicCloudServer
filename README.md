@@ -49,7 +49,7 @@ docker-compose up -d
 
 ### Requirements
 
-* [.NET SDK 6](https://dotnet.microsoft.com/download/dotnet-core/6.0)
+* [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet-core/8.0)
 * [PostgreSQL](https://www.postgresql.org/) (optional)
 * [FFmpeg](https://www.ffmpeg.org/) and [fdkaac](https://github.com/nu774/fdkaac) (optional, for default transcoding configuration)
 

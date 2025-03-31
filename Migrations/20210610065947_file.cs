@@ -2,7 +2,7 @@
 
 namespace MCloudServer.Migrations
 {
-    public partial class file : Migration
+    public partial class @file : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {

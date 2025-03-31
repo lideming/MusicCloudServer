@@ -10,7 +10,7 @@ namespace MCloudServer.Migrations
 {
     [DbContext(typeof(DbCtx))]
     [Migration("20210610065947_file")]
-    partial class file
+    partial class @file
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {

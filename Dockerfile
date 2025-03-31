@@ -19,7 +19,7 @@ RUN sed -i '/\Wworktree = .*/d' .git/config && \
 
 
 #==> Build backend
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
 WORKDIR /app
 
 COPY *.csproj ./
@@ -33,7 +33,7 @@ COPY --from=build-webapp-env /app/dist/ /app/out/webapp/
 
 
 #==> Build the actual app container
-FROM mcr.microsoft.com/dotnet/aspnet:6.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 WORKDIR /app
 
 # These are required for transcoding
