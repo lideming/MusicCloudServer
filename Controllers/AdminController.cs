@@ -9,6 +9,7 @@ using MCloudServer;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks.Dataflow;
 
 namespace MCloudServer.Controllers
 {
@@ -117,22 +118,27 @@ namespace MCloudServer.Controllers
                 } else if (arg == "rebuild_loudness") {
                     result = "ok";
                     var listFail = new List<int>();
+                    var block = new ActionBlock<Track>(async (t) => {
+                        try {
+                            var info = await _context.App.ConvertService.ComputeLoudnessMap(t);
+                            var oldInfo = await _context.TrackAudioInfos.AsNoTracking().Where(x => x.Id == t.id).FirstOrDefaultAsync();
+                            if (oldInfo == null) {
+                                _context.TrackAudioInfos.Add(info);
+                            } else {
+                                _context.TrackAudioInfos.Update(info);
+                            }
+                            await _context.SaveChangesAsync();
+                        } catch (Exception) {
+                            listFail.Add(t.id);
+                        }
+                    }, new ExecutionDataflowBlockOptions{ MaxDegreeOfParallelism = Environment.ProcessorCount / 2 });
                     await _context.Tracks
                         .Include(t => t.fileRecord)
-                        .ForEachAsync(async (t) => {
-                            try {
-                                var info = await _context.App.ConvertService.ComputeLoudnessMap(t);
-                                var oldInfo = await _context.TrackAudioInfos.AsNoTracking().Where(x => x.Id == t.id).FirstOrDefaultAsync();
-                                if (oldInfo == null) {
-                                    _context.TrackAudioInfos.Add(info);
-                                } else {
-                                    _context.TrackAudioInfos.Update(info);
-                                }
-                                await _context.SaveChangesAsync();
-                            } catch (Exception) {
-                                listFail.Add(t.id);
-                            }
+                        .ForEachAsync((t) => {
+                            block.Post(t);
                         });
+                    block.Complete();
+                    await block.Completion;
                     sb.Append("failed id list: ").Append(string.Join(" ", listFail));
                 }
             } catch (Exception ex) {
