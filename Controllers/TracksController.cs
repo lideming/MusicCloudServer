@@ -176,14 +176,14 @@ namespace MCloudServer.Controllers
                         RedirectStandardOutput = true,
                     });
                     var pcm = proc.StandardOutput.BaseStream;
-                    var buffer = new byte[16 * 1024];
+                    var buffer = new byte[4 * 1024];
                     while(true) {
                         var haveRead = 0;
                         do {
                             var read = await pcm.ReadAsync(buffer.AsMemory(haveRead));
                             if (read == 0) break;
                             haveRead += read;
-                        } while (haveRead < 16 * 1024);
+                        } while (haveRead < 4 * 1024);
                         if (haveRead == 0) break;
                         double sum = 0;
                         for (var i = 0; i < haveRead; i++) {
