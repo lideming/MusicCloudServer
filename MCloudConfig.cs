@@ -30,6 +30,8 @@ namespace MCloudServer
         public string Passcode { get; set; }
         // "passcode"
 
+        public string ForwardedFrom { get; set; }
+
         public List<Converter> Converters { get; set; } = new List<Converter>();
 
         public bool ConverterDebug { get; set; }

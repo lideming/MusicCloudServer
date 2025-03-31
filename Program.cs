@@ -54,11 +54,13 @@ services.AddAuthentication("UserAuth")
     .AddScheme<AuthenticationSchemeOptions, UserService.AuthHandler>("UserAuth", null);
 services.AddSingleton<StorageService>(new LocalStorageService());
 services.AddSingleton<FileService>();
-services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-});
+if (!string.IsNullOrEmpty(myConfig.ForwardedFrom)) {
+    services.Configure<ForwardedHeadersOptions>(options => {
+        options.ForwardedHeaders =
+            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Add(IPNetwork.Parse(myConfig.ForwardedFrom));
+    });
+}
 
 var app  = builder.Build();
 var env = app.Environment;
