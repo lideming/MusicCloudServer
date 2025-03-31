@@ -103,10 +103,10 @@ namespace MCloudServer.Controllers
                     await _context.Tracks
                         .Include(t => t.fileRecord)
                         .Where(t => t.pictureFileId == null)
-                        .ForEachAsync((t) => {
+                        .ForEachAsync(async (t) => {
                         if (t.TryGetStoragePath(_app, out var path)) {
                             try {
-                                t.ReadPicutreFromTrackFile(_app);
+                                await t.ReadPicutreFromTrackFile(_app);
                             } catch (Exception) {
                                 listFail.Add(t.id);
                             }
@@ -114,6 +114,26 @@ namespace MCloudServer.Controllers
                     });
                     await _context.SaveChangesAsync();
                     sb.Append("except: ").Append(string.Join(" ", listFail));
+                } else if (arg == "rebuild_loudness") {
+                    result = "ok";
+                    var listFail = new List<int>();
+                    await _context.Tracks
+                        .Include(t => t.fileRecord)
+                        .ForEachAsync(async (t) => {
+                            try {
+                                var info = await _context.App.ConvertService.ComputeLoudnessMap(t);
+                                var oldInfo = await _context.TrackAudioInfos.AsNoTracking().Where(x => x.Id == t.id).FirstOrDefaultAsync();
+                                if (oldInfo == null) {
+                                    _context.TrackAudioInfos.Add(info);
+                                } else {
+                                    _context.TrackAudioInfos.Update(info);
+                                }
+                                await _context.SaveChangesAsync();
+                            } catch (Exception) {
+                                listFail.Add(t.id);
+                            }
+                        });
+                    sb.Append("failed id list: ").Append(string.Join(" ", listFail));
                 }
             } catch (Exception ex) {
                 result = "error";

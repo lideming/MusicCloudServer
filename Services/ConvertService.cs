@@ -236,5 +236,40 @@ namespace MCloudServer
                 }
             }
         }
+
+        public async Task<TrackAudioInfo> ComputeLoudnessMap(Track track) {
+            var app = serviceProvider.GetService<AppService>();
+            var input = app.ResolveStoragePath(track.fileRecord.path);
+            using (var ms = new MemoryStream()) {
+                var proc = Process.Start(new ProcessStartInfo() {
+                    FileName = "ffmpeg",
+                    Arguments = $"-loglevel warning -i {input} -f s8 -c:a pcm_s8 -",
+                    RedirectStandardOutput = true,
+                });
+                var pcm = proc.StandardOutput.BaseStream;
+                var buffer = new byte[4 * 1024];
+                while(true) {
+                    var haveRead = 0;
+                    do {
+                        var read = await pcm.ReadAsync(buffer.AsMemory(haveRead));
+                        if (read == 0) break;
+                        haveRead += read;
+                    } while (haveRead < 4 * 1024);
+                    if (haveRead == 0) break;
+                    double sum = 0;
+                    for (var i = 0; i < haveRead; i++) {
+                        var x = (sbyte)buffer[i];
+                        sum += x * x;
+                    }
+                    var rms = Math.Sqrt(sum / haveRead);
+                    ms.WriteByte((byte)rms);
+                }
+                logger.LogInformation("Processed {0}", ms.Length);
+                return new TrackAudioInfo() {
+                    Id = track.id,
+                    Peaks = ms.ToArray(),
+                };
+            }
+        }
     }
 }
