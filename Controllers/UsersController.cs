@@ -72,7 +72,7 @@ namespace MCloudServer.Controllers
             }
             return config.AuthEndpoint + new QueryBuilder() {
                 {"client_id" , config.ClientId},
-                {"redirect_uri", (Request.IsHttps ? "https" : "http") + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
+                {"redirect_uri", Request.Scheme.ToLower() + "://" + Request.Host + "/api/users/me/socialLogin-continued"},
                 {"response_type", "code"},
                 {"scope", "openid profile"},
                 {"state", _app.SignToken(new [] { provider, returnUrl, state }, TimeSpan.FromMinutes(30))},
