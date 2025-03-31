@@ -176,23 +176,24 @@ namespace MCloudServer.Controllers
                         RedirectStandardOutput = true,
                     });
                     var pcm = proc.StandardOutput.BaseStream;
-                    var buffer = new byte[64 * 1024];
-                    var haveRead = 0;
+                    var buffer = new byte[16 * 1024];
                     while(true) {
-                        var read = await pcm.ReadAsync(buffer.AsMemory(haveRead));
-                        if (read == 0) break;
-                        haveRead += read;
-                        if (haveRead < 256) continue;
-                        int sum = 0;
-                        for (var i = 0; i < haveRead; i += 256) {
+                        var haveRead = 0;
+                        do {
+                            var read = await pcm.ReadAsync(buffer.AsMemory(haveRead));
+                            if (read == 0) break;
+                            haveRead += read;
+                        } while (haveRead < 16 * 1024);
+                        if (haveRead == 0) break;
+                        double sum = 0;
+                        for (var i = 0; i < haveRead; i++) {
                             var x = (sbyte)buffer[i];
                             sum += x * x;
                         }
-                        int count = haveRead / 256;
-                        var rms = Math.Sqrt(sum / count);
+                        var rms = Math.Sqrt(sum / haveRead);
                         ms.WriteByte((byte)rms);
                     }
-
+                    logger.LogInformation("Processed {0}", ms.Length);
                     info = new TrackAudioInfo() {
                         Id = id,
                         Peaks = ms.ToArray(),
