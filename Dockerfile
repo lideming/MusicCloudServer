@@ -13,7 +13,7 @@ COPY .git/modules/webapp/ .git/
 
 # Remove "worktree" in git config to make git work.
 RUN sed -i '/\Wworktree = .*/d' .git/config && \
-    npm i -g pnpm@6 && \
+    npm i -g pnpm@8 && \
     pnpm i --frozen-lockfile && \
     pnpm run build
 
