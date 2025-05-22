@@ -168,8 +168,8 @@ namespace MCloudServer.Controllers
 
             var info = await _context.TrackAudioInfos.FindAsync(id);
             if (info == null) {
-                var loudnessMap = await _app.ConvertService.ComputeLoudnessMap(track);
-                _context.TrackAudioInfos.Add(loudnessMap);
+                info = await _app.ConvertService.ComputeLoudnessMap(track);
+                _context.TrackAudioInfos.Add(info);
                 try
                 {
                      await _context.SaveChangesAsync();
