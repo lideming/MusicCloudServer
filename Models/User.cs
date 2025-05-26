@@ -84,6 +84,19 @@ namespace MCloudServer
         public int id { get; set; }
         public string username { get; set; }
         public string passwd { get; set; }
+        public string proof { get; set; }
+    }
+
+    public class ChallengeResponse
+    {
+        public string challenge { get; set; }
+    }
+
+    public class LoginRequest 
+    {
+        public string username { get; set; }
+        public string password { get; set; }
+        public string proof { get; set; }
     }
 
     public class UserGetVM

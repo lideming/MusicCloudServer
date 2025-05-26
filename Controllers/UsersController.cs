@@ -60,6 +60,29 @@ namespace MCloudServer.Controllers
             return await GetUser(user, true, token);
         }
 
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var token = await _context.UserService.TryLogin(request.username, request.password, request.proof);
+            if (token == null)
+                return GetErrorResult("login_failed");
+
+            return await GetUser(_context.UserService.User, true, token);
+        }
+
+        [HttpPost("challenge")]
+        public IActionResult GetChallenge([FromBody] string username)
+        {
+            if (string.IsNullOrEmpty(username))
+                return GetErrorResult("bad_arg");
+
+            var challenge = _context.UserService.GenerateProofOfWorkChallenge(username);
+            return new JsonResult(new { 
+                challenge,
+                difficulty = ProofOfWork.CurrentDifficulty 
+            });
+        }
+
         [HttpGet("me/socialLogin")]
         public IActionResult SocialLogin([FromQuery] string provider, [FromQuery] string returnUrl)
         {
@@ -606,7 +629,7 @@ namespace MCloudServer.Controllers
                 .Add("revision", item.revision.ToString())
                 .ToString().Substring(1);
             
-            Response.Headers.Add("x-mcloud-store-fields", fieldsString);
+            Response.Headers["x-mcloud-store-fields"] = fieldsString;
             return new FileStreamResult(new MemoryStream(item.value), "application/octet-stream");
         }
 

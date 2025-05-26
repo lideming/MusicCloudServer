@@ -20,10 +20,8 @@ namespace MCloudServer
     {
         private readonly DbCtx dbctx;
         private HttpContext httpContext;
-
         public bool IsLogged => User != null;
         public User User { get; private set; }
-
         public LoginRecord LoginRecord { get; private set; }
 
         public UserService(DbCtx dbctx)
@@ -32,12 +30,26 @@ namespace MCloudServer
             dbctx.UserService = this;
         }
 
-        public async Task<string> TryLogin(string account, string password)
+        public string GenerateProofOfWorkChallenge(string username)
         {
-            if (string.IsNullOrEmpty(account) || string.IsNullOrEmpty(password)) return null;
+            return ProofOfWork.GenerateChallenge(username);
+        }
+
+        public bool ValidateProofOfWork(string username, string proof, string password)
+        {
+            return ProofOfWork.VerifyProof(proof, username, password);
+        }
+
+        public async Task<string> TryLogin(string username, string password, string proof)
+        {
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password)) return null;
+
+            // Validate proof of work
+            if (!ValidateProofOfWork(username, proof, password))
+                return null;
 
             var user = await dbctx.Users.Where(u =>
-                    u.username == account
+                    u.username == username
                 ).SingleOrDefaultAsync();
             if (user == null) return null;
             if (Utils.ValidatePassword(password, user.passwd) == false) return null;
