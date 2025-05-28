@@ -15,6 +15,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Web;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MCloudServer.Controllers
 {
@@ -22,7 +23,6 @@ namespace MCloudServer.Controllers
     [ApiController]
     public class UsersController : MyControllerBase
     {
-
         public UsersController(DbCtx context) : base(context)
         {
         }
@@ -48,21 +48,10 @@ namespace MCloudServer.Controllers
         }
 
         [HttpPost("me/login")]
-        public async Task<IActionResult> PostUserLogin()
-        {
-            var user = await GetLoginUser();
-            string token = null;
-            if (user != null)
-            {
-                var record = await _context.UserService.CreateLoginRecord(user);
-                token = record.token;
-            }
-            return await GetUser(user, true, token);
-        }
-
-        [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            if (!_context.UserService.VerifyProof(request.username, request.password, request.proof, false))
+                return GetErrorResult("proof_failed");
             var token = await _context.UserService.TryLogin(request.username, request.password, request.proof);
             if (token == null)
                 return GetErrorResult("login_failed");
@@ -70,16 +59,21 @@ namespace MCloudServer.Controllers
             return await GetUser(_context.UserService.User, true, token);
         }
 
-        [HttpPost("challenge")]
-        public IActionResult GetChallenge([FromBody] string username)
+        public class GetChallengeRequest
         {
-            if (string.IsNullOrEmpty(username))
+            public string username { get; set; }
+            public bool register { get; set; } = false;
+        }
+        [HttpPost("challenge")]
+        public IActionResult GetChallenge([FromBody] GetChallengeRequest request)
+        {
+            if (string.IsNullOrEmpty(request.username))
                 return GetErrorResult("bad_arg");
 
-            var challenge = _context.UserService.GenerateProofOfWorkChallenge(username);
+            var challenge = _context.UserService.GenerateProofOfWorkChallenge(request.username);
             return new JsonResult(new { 
                 challenge,
-                difficulty = ProofOfWork.CurrentDifficulty 
+                difficulty = _context.UserService.GetProofDifficulty(request.register),
             });
         }
 
@@ -464,6 +458,8 @@ namespace MCloudServer.Controllers
         {
             if (string.IsNullOrEmpty(userreg.username))
                 return GetErrorResult("bad_arg");
+            if (!_context.UserService.VerifyProof(userreg.username, userreg.passwd, userreg.proof, true))
+                return GetErrorResult("proof_failed");
             if (_context.Users.Any(u => u.username == userreg.username))
                 return GetErrorResult("dup_user");
             var user = new User

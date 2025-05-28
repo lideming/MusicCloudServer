@@ -24,6 +24,9 @@ namespace MCloudServer
         public User User { get; private set; }
         public LoginRecord LoginRecord { get; private set; }
 
+        public int LoginDifficulty => 4;
+        public int RegisterDifficulty => 5;
+
         public UserService(DbCtx dbctx)
         {
             this.dbctx = dbctx;
@@ -35,18 +38,19 @@ namespace MCloudServer
             return ProofOfWork.GenerateChallenge(username);
         }
 
-        public bool ValidateProofOfWork(string username, string proof, string password)
+        public bool VerifyProof(string username, string password, string proof, bool register)
         {
-            return ProofOfWork.VerifyProof(proof, username, password);
+            return ProofOfWork.VerifyProof(username, password, proof, GetProofDifficulty(register));
+        }
+
+        public int GetProofDifficulty(bool register)
+        {
+            return register ? RegisterDifficulty : LoginDifficulty;
         }
 
         public async Task<string> TryLogin(string username, string password, string proof)
         {
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password)) return null;
-
-            // Validate proof of work
-            if (!ValidateProofOfWork(username, proof, password))
-                return null;
 
             var user = await dbctx.Users.Where(u =>
                     u.username == username
@@ -75,20 +79,6 @@ namespace MCloudServer
             }
         }
 
-        public async Task Register(User user)
-        {
-            var username = user.username;
-            if (await dbctx.Users.Where(u => u.username == username).AnyAsync())
-                throw new UserServiceException("username_exists");
-
-            dbctx.Users.Add(user);
-            var record = CreateLoginRecord_NoSave(user);
-
-            await dbctx.SaveChangesAsync();
-
-            SetServiceState(record);
-        }
-
         public Task CheckRequest()
         {
             var auth = httpContext.Request.Headers["Authorization"];
@@ -113,14 +103,7 @@ namespace MCloudServer
 
             var splits = auth.Split(' ');
             if (splits.Length != 2) return default;
-            if (splits[0] == "Basic") {
-                var kv = Encoding.UTF8.GetString(Convert.FromBase64String(splits[1])).Split(':');
-                if (kv.Length < 2) return default;
-                var username = kv[0];
-                var passwd = kv[1];
-                user = await dbctx.FindUser(username);
-                if (user == null || string.IsNullOrEmpty(user.passwd) || !Utils.ValidatePassword(passwd, user.passwd)) user = null;
-            } else if (splits[0] == "Bearer") {
+            if (splits[0] == "Bearer") {
                 var token = splits[1];
                 if (string.IsNullOrEmpty(token)) return default;
                 record = await dbctx.FindLogin(token);
