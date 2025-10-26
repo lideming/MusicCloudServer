@@ -89,7 +89,11 @@ if (env.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+app.UseCors(builder => 
+    builder
+        .AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()
+        .WithExposedHeaders(["x-mcloud-store-fields"])
+);
 
 if (string.IsNullOrEmpty(myConfig.Passcode) == false)
 {
